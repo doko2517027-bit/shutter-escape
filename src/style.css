@@ -16,3 +16,6 @@
 /* Pan menus without allowing browser pinch or double-tap zoom. */
 html,body,#ui{touch-action:pan-x pan-y}
 input,select,textarea{font-size:16px}
+
+.entry-options{display:grid;gap:12px;margin:24px 0}.entry-options button{min-height:58px;text-align:center}
+@media(orientation:landscape) and (max-height:500px){.entry-options{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.entry-options button{min-height:80px;padding:12px 8px;font-size:13px}}
