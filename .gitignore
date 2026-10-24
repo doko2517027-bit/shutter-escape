@@ -4,3 +4,5 @@ dist/
 !.env.example
 .DS_Store
 outputs/
+
+firebase-debug.log*

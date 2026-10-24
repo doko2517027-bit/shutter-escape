@@ -1,4 +1,4 @@
-export const BRAND={title:'シャッター・エスケープ',subtitle:'SHUTTER / ESCAPE',version:'TEST BUILD 01',instruction:'鉄のシャッターのゴールの扉から出たらクリア。'}
+export const BRAND={title:'Switch & Shutter',subtitle:'FIRST-PERSON COOPERATIVE HORROR',version:'TEST BUILD 01',instruction:'鉄のシャッターのゴールの扉から出たらクリア。'}
 export const STEP=1/30,MAX_PLAYERS=4
 export const DEFAULTS={speed:4.6,jump:5.6,gravity:13,acceleration:26,friction:22,monsterSpeed:17,hearing:48,memory:9,elimination:'individual'}
 export const LIMITS={speed:[3,6],jump:[4.5,7],gravity:[10,20],acceleration:[12,45],friction:[10,40],monsterSpeed:[9,24],hearing:[20,80],memory:[3,18]}

@@ -1,4 +1,5 @@
 import express from 'express'
+import {mountAccounts} from './auth.js'
 import {createServer} from 'node:http'
 import {randomBytes,randomInt} from 'node:crypto'
 import {WebSocketServer,WebSocket} from 'ws'
@@ -6,8 +7,9 @@ import {fileURLToPath} from 'node:url'
 import {resolve} from 'node:path'
 import {STEP,MAX_PLAYERS,settings} from '../shared/world.js'
 import {createPlayer,createMatch,tick,snapshot,sanitizeInput} from '../shared/engine.js'
-export function createGameServer(){
+export function createGameServer(options={}){
  const app=express(),server=createServer(app),rooms=new Map(),wss=new WebSocketServer({server,path:'/socket',maxPayload:16384})
+ mountAccounts(app,options.auth)
  app.disable('x-powered-by');app.use((_req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');next()})
  app.get('/api/health',(_req,res)=>res.json({ok:true,game:'shutter-escape',rooms:rooms.size,protocol:1}))
  app.use(express.static(resolve(fileURLToPath(new URL('../dist',import.meta.url)))))
