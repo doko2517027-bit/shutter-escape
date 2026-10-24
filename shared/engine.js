@@ -48,7 +48,7 @@ export function tick(s,inputs={}){
   const sound=candidates[0]?.n
   if(sound){monster.target=sound.player;monster.heard={x:sound.x,z:sound.z,at:sound.at};assigned.set(sound.player,(assigned.get(sound.player)||0)+1)}
   if(monster.heard&&s.time-monster.heard.at>s.settings.memory){monster.heard=null;monster.target=null}
-  const wasAlert=monster.alert;monster.alert=!!monster.heard;if(monster.alert&&!wasAlert)emit(s,'alert',{monster:monster.id})
+  const wasAlert=monster.alert;monster.alert=!!monster.heard;if(monster.alert&&!wasAlert){monster.repath=0;emit(s,'alert',{monster:monster.id})}
   monster.repath-=STEP;monster.patrol-=STEP
   if(monster.repath<=0){let target=monster.heard;if(!target){if(monster.patrol<=0){const a=s.tick*.013+Number(monster.id.slice(1))*2.7;monster.destination={x:Math.cos(a)*29,z:Math.sin(a)*32};monster.patrol=7}target=monster.destination}monster.path=navigationPath(monster,target||monster);monster.repath=monster.alert?.55:2}
   let travel=(monster.alert?s.settings.monsterSpeed:1.5)*STEP

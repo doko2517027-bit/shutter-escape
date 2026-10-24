@@ -1,13 +1,13 @@
 import './style.css'
 import {Account,accountError} from './account.js'
-import {BRAND,DEFAULTS,LIMITS,STEP,LEVERS,DOOR,settings} from '../shared/world.js'
+import {BRAND,DEFAULTS,LIMITS,STEP,LEVERS,DOOR,settings,migratePreferences} from '../shared/world.js'
 import {createPlayer,createMatch,tick,movePlayer} from '../shared/engine.js'
 import {WorldView} from './scene.js'
 import {Sound} from './audio.js'
 import {ROLES,DEFAULT_TRANSFORM,readAssets,saveAsset,removeAsset,replaceAssets,importFile,exportPack,parsePack,safeTransform} from './assets.js'
 const root=document.querySelector('#ui'),canvas=document.querySelector('#world'),audio=new Sound(),escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
 let config={...DEFAULTS,title:BRAND.title,sensitivity:.0024,fov:68,quality:'medium',bgm:.25,se:.7,reduced:matchMedia('(prefers-reduced-motion: reduce)').matches}
-try{config={...config,...JSON.parse(localStorage.getItem('shutter.settings')||'{}')};Object.assign(config,settings(config))}catch{}
+try{config={...config,...migratePreferences(JSON.parse(localStorage.getItem('shutter.settings')||'{}'))};Object.assign(config,settings(config))}catch{}
 if(['シャッター・エスケープ','Shutter Escape'].includes(config.title))config.title=BRAND.title
 let account=null,accountForm='login'
 let mode='title',previousMode='title',playType='solo',state=null,meId='solo',view=null,assets={},draft=null,assetRole='monster',notice='',busy=false,ws=null,lobby=null,host=null,roomCode='',token='',mySessionId='',pending=[],seq=0,predicted=null,offset={x:0,y:0,z:0},snapshots=[],lastEvent=0,lastTick=-1,rtt=0,network='',reconnectAt=0,reconnectAttempt=0,manualClose=false,acc=0,lastFrame=performance.now(),interact=false,jump=false,look={yaw:0,pitch:0},keys=new Set(),stick={right:0,forward:0},targetName='',hudLast=0,outcomeShown=false

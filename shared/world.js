@@ -1,7 +1,8 @@
 export const BRAND={title:'Switch & Shutter',subtitle:'FIRST-PERSON COOPERATIVE HORROR',version:'TEST BUILD 01',instruction:'鉄のシャッターのゴールの扉から出たらクリア。'}
 export const STEP=1/30,MAX_PLAYERS=4
-export const DEFAULTS={speed:4.6,jump:5.6,gravity:13,acceleration:26,friction:22,monsterSpeed:17,hearing:48,memory:9,elimination:'individual'}
-export const LIMITS={speed:[3,6],jump:[4.5,7],gravity:[10,20],acceleration:[12,45],friction:[10,40],monsterSpeed:[9,24],hearing:[20,80],memory:[3,18]}
+export const DEFAULTS={speed:4.6,jump:5.6,gravity:13,acceleration:26,friction:22,monsterSpeed:24,hearing:48,memory:9,elimination:'individual'}
+export const LIMITS={speed:[3,6],jump:[4.5,7],gravity:[10,20],acceleration:[12,45],friction:[10,40],monsterSpeed:[9,32],hearing:[20,80],memory:[3,18]}
+export function migratePreferences(raw={}){const next={...raw};if((next.balanceVersion||0)<2&&next.monsterSpeed===17)next.monsterSpeed=DEFAULTS.monsterSpeed;next.balanceVersion=2;return next}
 export function settings(raw={}){const out={...DEFAULTS};for(const [key,[min,max]] of Object.entries(LIMITS)){const n=Number(raw[key]);if(Number.isFinite(n))out[key]=Math.max(min,Math.min(max,n))}if(raw.elimination==='team')out.elimination='team';return out}
 const cells=new Set(),add=(c,r)=>cells.add(`${c},${r}`),span=(r,a,b)=>{for(let c=a;c<=b;c++)add(c,r)}
 span(0,0,4);add(4,1);span(2,0,8);add(8,3);span(4,5,8);add(5,5);span(6,0,5);add(0,7);span(8,0,6);span(9,6,8);add(0,1);add(1,1);add(2,3);add(2,4);add(2,5);add(5,7)
