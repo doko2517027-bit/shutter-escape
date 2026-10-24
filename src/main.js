@@ -1,7 +1,7 @@
 import './style.css'
 import {installTouchControls} from './touch-controls.js'
 import {installZoomGuard} from './gestures.js'
-installZoomGuard(document)
+installZoomGuard(document,()=>document.documentElement.dataset.playing==='true')
 import {Account,accountError} from './account.js'
 import {BRAND,DEFAULTS,LIMITS,STEP,LEVERS,DOOR,settings,migratePreferences} from '../shared/world.js'
 import {createPlayer,createMatch,tick,movePlayer} from '../shared/engine.js'
@@ -36,7 +36,7 @@ function render(){if(mode==='admin'&&!account?.admin)mode='account';let html='';
  else if(mode==='pause')html=panel('一時停止',`${playType==='online'?'<p class="fine">協力プレイは進行を続けています。</p>':''}${btn('再開　→','resume','class="primary"')}${btn('リスタート','restart')}${btn('設定','settings')}${btn('タイトルへ戻る','title')}`,'PAUSED','game')
  else if(mode==='game'){html=`<div class="hud">${uiURL?`<img class="hud-art" src="${uiURL}" alt="">`:''}<div class="hud-top"><div class="hud-label">SECTOR 01 <b id="lever-count">0 / 3</b></div><div class="hud-right"><span id="members-count"></span>${btn('Ⅱ','pause','aria-label="一時停止"')}</div></div><div class="crosshair">+</div><div id="interaction"></div><div id="toast" role="status"></div><div class="controls-hint">W A S D 移動 <i>·</i> SPACE ジャンプ <i>·</i> E 調べる <i>·</i> ESC メニュー</div><div class="touch-look" id="touch-look"></div><div id="joystick"><i></i><b></b></div><div class="touch-buttons">${btn('調べる','interact')}${btn('↑','jump','aria-label="ジャンプ"')}</div><div id="network-status"></div></div>`}
  else if(mode==='clear'||mode==='dead'){const p=state?.players.find(p=>p.id===meId);html=panel(mode==='clear'?'脱出成功':'GAME OVER',`<div class="result-symbol">${mode==='clear'?'↗':'×'}</div><p>${mode==='clear'?'CLEAR':'怪物につかまった'}</p><div class="result-stats"><span>所要時間 <b>${formatTime(state?.time||0)}</b></span><span>作動レバー <b>${p?.levers||0} / 3</b></span></div>${playType==='online'&&!state?.finished?'<p class="fine">他のプレイヤーは探索を継続しています。</p>':''}${btn('リトライ','restart','class="primary"')}${btn('タイトルへ戻る','title')}`,'END OF EXPLORATION')}
- root.innerHTML=html+(notice&&mode!=='game'?`<div class="notice" role="status">${escape(notice)}</div>`:'');root.className=mode==='game'?'playing':'';if(busy)root.querySelectorAll('button').forEach(b=>b.disabled=true);if(mode==='game'){installTouch();updateHUD()} }
+ root.innerHTML=html+(notice&&mode!=='game'?`<div class="notice" role="status">${escape(notice)}</div>`:'');root.className=mode==='game'?'playing':'';document.documentElement.dataset.playing=String(mode==='game');if(mode==='game'){root.scrollTop=0;root.scrollLeft=0}if(busy)root.querySelectorAll('button').forEach(b=>b.disabled=true);if(mode==='game'){installTouch();updateHUD()} }
 function slider(label,key,min,max,step,value){return `<label class="range"><span>${label}<output>${Number(value).toFixed(key==='sensitivity'?4:step<1?1:0)}</output></span><input type="range" name="${key}" min="${min}" max="${max}" step="${step}" value="${value}"></label>`}
 function formatTime(time){return `${Math.floor(time/60).toString().padStart(2,'0')}:${Math.floor(time%60).toString().padStart(2,'0')}`}
 function go(next){notice='';if(next!=='game'){keys.clear();stick={right:0,forward:0};document.exitPointerLock?.()}mode=next;render()}
