@@ -1,4 +1,6 @@
 import './style.css'
+import {installZoomGuard} from './gestures.js'
+installZoomGuard(document)
 import {Account,accountError} from './account.js'
 import {BRAND,DEFAULTS,LIMITS,STEP,LEVERS,DOOR,settings,migratePreferences} from '../shared/world.js'
 import {createPlayer,createMatch,tick,movePlayer} from '../shared/engine.js'

@@ -13,3 +13,6 @@
   user-select: none;
   -webkit-user-select: none;
 }
+/* Pan menus without allowing browser pinch or double-tap zoom. */
+html,body,#ui{touch-action:pan-x pan-y}
+input,select,textarea{font-size:16px}
