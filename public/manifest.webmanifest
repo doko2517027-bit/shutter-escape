@@ -1,0 +1,14 @@
+{
+  "id": "/",
+  "name": "Switch & Shutter",
+  "short_name": "スウィシャ",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#080f0e",
+  "theme_color": "#080e0e",
+  "icons": [
+    {"src": "/app-icon.png", "sizes": "1254x1254", "type": "image/png", "purpose": "any"}
+  ]
+}
