@@ -8,10 +8,12 @@ export function movePlayer(p,input={},cfg,open=false){
  const wasWater=p.grounded&&p.surface==='water',wasGrounded=p.grounded;const dt=STEP
  p.yaw=Number.isFinite(input.yaw)?input.yaw:p.yaw;p.pitch=Number.isFinite(input.pitch)?input.pitch:p.pitch
  let r=input.right||0,f=input.forward||0,n=Math.hypot(r,f);if(n>1){r/=n;f/=n}
- const speed=cfg.speed*(wasWater?.68:1),dx=(Math.cos(p.yaw)*r-Math.sin(p.yaw)*f)*speed,dz=(-Math.sin(p.yaw)*r-Math.cos(p.yaw)*f)*speed,acc=(n?cfg.acceleration:cfg.friction)*dt
- p.vx=approach(p.vx,dx,acc);p.vz=approach(p.vz,dz,acc)
+ const tempo=cfg.jumpTempo||1
  p.coyote=p.grounded?.12:Math.max(0,p.coyote-dt);p.jumpBuffer=input.jump?.14:Math.max(0,p.jumpBuffer-dt)
- if(p.jumpBuffer>0&&p.coyote>0){p.vy=cfg.jump;p.grounded=false;p.coyote=0;p.jumpBuffer=0}
+ if(p.jumpBuffer>0&&p.coyote>0){p.vy=cfg.jump*tempo;p.grounded=false;p.coyote=0;p.jumpBuffer=0}
+ // Speed up the airborne arc, without changing walking pace or its intended reach.
+ const speed=cfg.speed*(wasWater?.68:1)*(p.grounded?1:tempo),dx=(Math.cos(p.yaw)*r-Math.sin(p.yaw)*f)*speed,dz=(-Math.sin(p.yaw)*r-Math.cos(p.yaw)*f)*speed,acc=(n?cfg.acceleration:cfg.friction)*dt
+ p.vx=approach(p.vx,dx,acc);p.vz=approach(p.vz,dz,acc)
  const previousY=p.y
  // A falling player may overlap a raised edge before their feet drop below it.
  // Resolve that shallow overlap once, so the side never traps both movement axes.
@@ -25,7 +27,7 @@ export function movePlayer(p,input={},cfg,open=false){
  if(!blockers.some(b=>inside(nx,p.z,b,RADIUS)))p.x=nx;else p.vx=0
  const nz=clamp(p.z+p.vz*dt,BOUNDS.zMin,BOUNDS.zMax)
  if(!blockers.some(b=>inside(p.x,nz,b,RADIUS)))p.z=nz;else p.vz=0
- p.vy-=cfg.gravity*dt;p.y+=p.vy*dt;p.grounded=false
+ p.vy-=cfg.gravity*tempo*tempo*dt;p.y+=p.vy*dt;p.grounded=false
  let support=null
  for(const platform of PLATFORMS)if(inside(p.x,p.z,platform)&&previousY>=platform.y-.06&&p.y<=platform.y&&p.vy<=0&&(!support||platform.y>support.y))support=platform
  if(support){p.y=support.y;p.vy=0;p.grounded=true;p.surface='brick'}else if(p.y<=0){p.y=0;p.vy=0;p.grounded=true;p.surface='water'}else p.surface='air'
