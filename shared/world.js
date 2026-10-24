@@ -10,7 +10,7 @@ PLATFORMS.find(p=>p.c===0&&p.r===0).w=7
 PLATFORMS.find(p=>p.c===0&&p.r===0).d=7
 PLATFORMS.push({id:'exit',x:24,z:-30,w:5.8,d:12,y:1.31,c:8,r:10})
 export const LEVERS=[{id:'L1',x:18,z:16,y:.65},{id:'L2',x:-18,z:-8,y:1.09},{id:'L3',x:12,z:-26,y:1.31}]
-export const WALLS=[{x:-32,z:0,w:.8,d:74},{x:32,z:0,w:.8,d:74},{x:0,z:36,w:64,d:.8},{x:-5,z:-36,w:53,d:.8},{x:30,z:-36,w:4,d:.8},{x:20.6,z:-31,w:.7,d:10},{x:27.4,z:-31,w:.7,d:10},{x:-7,z:15,w:.8,d:13},{x:7,z:0,w:.8,d:13},{x:-7,z:-15,w:.8,d:13}]
+export const WALLS=[{x:-32,z:0,w:.8,d:74},{x:32,z:0,w:.8,d:74},{x:0,z:36,w:64,d:.8},{x:-5,z:-36,w:53,d:.8},{x:30,z:-36,w:4,d:.8},{x:20.6,z:-32,w:.7,d:8},{x:27.4,z:-32,w:.7,d:8},{x:-7,z:15,w:.8,d:13},{x:7,z:0,w:.8,d:13},{x:-7,z:-15,w:.8,d:13}]
 export const DOOR={x:24,z:-32,w:6,d:.5},BOUNDS={x:31.3,zMin:-36.5,zMax:35.3}
 export const RADIUS=.28,EYE=1.58
 export function inside(x,z,box,pad=0){return Math.abs(x-box.x)<box.w/2+pad&&Math.abs(z-box.z)<box.d/2+pad}

@@ -45,10 +45,10 @@ export function createGameServer(){
     if(!room.match||room.match.finished)return;if(!Array.isArray(d.commands)||d.commands.length>8)throw Error('INVALID_INPUT')
     for(const raw of d.commands){const input=sanitizeInput(raw);if(!input)throw Error('INVALID_INPUT');if(input.seq<=member.enqueued)continue;if(input.seq!==member.enqueued+1||member.queue.length>=90)throw Error('INPUT_OVERFLOW');member.queue.push(input);member.enqueued=input.seq}
    }
-   else if(d.type==='leave'){ws.close(1000,'leave')}
+   else if(d.type==='leave'){member.leaving=true;ws.close(1000,'leave')}
    else throw Error('INVALID_REQUEST')
   }catch(error){send(ws,{type:'error',code:error.message||'INVALID_REQUEST'})}})
-  ws.on('close',()=>{if(!member||member.ws!==ws)return;member.ws=null;member.disconnected=Date.now();const p=room?.match?.players.find(p=>p.id===member.id);if(p)p.connected=false;if(room)broadcast(room,lobby(room))})
+  ws.on('close',()=>{if(!member||member.ws!==ws)return;member.ws=null;member.disconnected=member.leaving?Date.now()-30001:Date.now();const p=room?.match?.players.find(p=>p.id===member.id);if(p)p.connected=false;if(room)broadcast(room,lobby(room))})
  })
  let previous=performance.now(),acc=0,broadcastCount=0
  const timer=setInterval(()=>{const now=performance.now();acc+=Math.min(.2,(now-previous)/1000);previous=now
