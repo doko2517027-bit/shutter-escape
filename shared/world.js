@@ -7,7 +7,7 @@ const cells=new Set(),add=(c,r)=>cells.add(`${c},${r}`),span=(r,a,b)=>{for(let c
 span(0,0,4);add(4,1);span(2,0,8);add(8,3);span(4,5,8);add(5,5);span(6,0,5);add(0,7);span(8,0,6);span(9,6,8);add(0,1);add(1,1);add(2,3);add(2,4);add(2,5);add(5,7)
 export const PLATFORMS=[...cells].map((cell,i)=>{const[c,r]=cell.split(',').map(Number);return {id:'p'+i,c,r,x:-24+c*6,z:28-r*6,w:4,d:4,y:.65+Math.floor(r/3)*.22}})
 PLATFORMS.find(p=>p.c===0&&p.r===0).w=7
-PLATFORMS.find(p=>p.c===0&&p.r===0).d=7
+PLATFORMS.find(p=>p.c===0&&p.r===0).d=6.6
 PLATFORMS.push({id:'exit',x:24,z:-30,w:5.8,d:12,y:1.31,c:8,r:10})
 export const LEVERS=[{id:'L1',x:18,z:16,y:.65},{id:'L2',x:-18,z:-8,y:1.09},{id:'L3',x:12,z:-26,y:1.31}]
 export const WALLS=[{x:-32,z:0,w:.8,d:74},{x:32,z:0,w:.8,d:74},{x:0,z:36,w:64,d:.8},{x:-5,z:-36,w:53,d:.8},{x:30,z:-36,w:4,d:.8},{x:20.6,z:-32,w:.7,d:8},{x:27.4,z:-32,w:.7,d:8},{x:-7,z:15,w:.8,d:13},{x:7,z:0,w:.8,d:13},{x:-7,z:-15,w:.8,d:13}]

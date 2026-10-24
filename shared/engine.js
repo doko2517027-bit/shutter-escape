@@ -13,6 +13,13 @@ export function movePlayer(p,input={},cfg,open=false){
  p.coyote=p.grounded?.12:Math.max(0,p.coyote-dt);p.jumpBuffer=input.jump?.14:Math.max(0,p.jumpBuffer-dt)
  if(p.jumpBuffer>0&&p.coyote>0){p.vy=cfg.jump;p.grounded=false;p.coyote=0;p.jumpBuffer=0}
  const previousY=p.y
+ // A falling player may overlap a raised edge before their feet drop below it.
+ // Resolve that shallow overlap once, so the side never traps both movement axes.
+ for(const platform of PLATFORMS)if(p.y<platform.y-.12&&inside(p.x,p.z,platform,RADIUS)){
+  const ox=platform.w/2+RADIUS-Math.abs(p.x-platform.x),oz=platform.d/2+RADIUS-Math.abs(p.z-platform.z)
+  if(ox<oz)p.x=platform.x+(Math.sign(p.x-platform.x)||1)*(platform.w/2+RADIUS+.001)
+  else p.z=platform.z+(Math.sign(p.z-platform.z)||1)*(platform.d/2+RADIUS+.001)
+ }
  const blockers=[...solids(open),...PLATFORMS.filter(platform=>p.y<platform.y-.12)]
  const nx=clamp(p.x+p.vx*dt,-BOUNDS.x,BOUNDS.x)
  if(!blockers.some(b=>inside(nx,p.z,b,RADIUS)))p.x=nx;else p.vx=0
