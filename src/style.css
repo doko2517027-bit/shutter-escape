@@ -4,3 +4,12 @@
 #orientation-guard{display:none;position:fixed;inset:0;z-index:100;background:#080f0efc;color:#d6dbcf;align-content:center;justify-items:center;text-align:center;padding:28px}#orientation-guard h1{font-size:24px;margin:18px 0}#orientation-guard p{font-size:13px;margin:5px 0}.rotate-symbol{font-size:60px;color:var(--accent)}.account-email{font-family:monospace;overflow-wrap:anywhere}#account-form>button{width:100%;margin:8px 0}#world{touch-action:none}
 @media(orientation:portrait){#orientation-guard{display:grid}#ui{visibility:hidden}}
 @media(orientation:landscape) and (max-height:500px){.title-page{padding:18px 5vw}.title-page header{min-height:22px}.title-block{display:grid;grid-template-columns:1fr 1fr;column-gap:35px;max-width:900px;width:100%;padding:18px 0;margin:auto 0}.title-block .overline{grid-column:1;margin:0}.title-block h1{grid-column:1;font-size:clamp(27px,5vw,48px);margin:12px 0;line-height:1.2}.title-block .english-title{grid-column:1;font-size:8px;letter-spacing:2px}.title-rule{display:none}.title-block nav{grid-column:2;grid-row:1/5;width:100%;gap:5px;align-self:center}.title-block nav button{min-height:40px;padding:9px 12px}.title-coordinate{display:none}.title-page footer{font-size:7px}.page{padding:12px 5vw}.panel{margin:20px auto;padding:24px}.touch-buttons{gap:8px}.touch-buttons button{width:56px;height:56px}.touch-buttons button:last-child{width:72px;height:72px}#joystick{width:105px;height:105px}#joystick b{left:25px;top:25px}}
+/* スマホの同時タッチ操作を有効にする */
+#joystick,
+.touch-look,
+.touch-buttons,
+.touch-buttons button {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
