@@ -1,0 +1,9 @@
+export const SURFACE_ROLES=['brick','wall','seabed','structure','pipe','lamp','water','effect','background','ui','logo']
+export const DEFAULT_LOOK={useColor:false,color:'#ffffff',roughness:1,metalness:0,opacity:1,emissive:0,repeatX:1,repeatY:1}
+export const DEFAULT_ENVIRONMENT={fogColor:'#091315',fogDensity:.039,exposure:1.35,light:1,torch:1,waterSpeed:1}
+const number=(v,min,max,fallback)=>Number.isFinite(Number(v))?Math.max(min,Math.min(max,Number(v))):fallback
+const color=(v,fallback)=>/^#[0-9a-f]{6}$/i.test(v)?v:fallback
+export function safeLook(raw={}){raw=raw&&typeof raw==='object'?raw:{};return {useColor:raw.useColor===true,color:color(raw.color,DEFAULT_LOOK.color),...Object.fromEntries(Object.entries({roughness:[0,1],metalness:[0,1],opacity:[.05,1],emissive:[0,3],repeatX:[.1,32],repeatY:[.1,32]}).map(([k,[min,max]])=>[k,number(raw[k],min,max,DEFAULT_LOOK[k])]))}}
+export function safeEnvironment(raw={}){raw=raw&&typeof raw==='object'?raw:{};return {fogColor:color(raw.fogColor,DEFAULT_ENVIRONMENT.fogColor),...Object.fromEntries(Object.entries({fogDensity:[0,.12],exposure:[.3,3],light:[.1,3],torch:[0,3],waterSpeed:[0,3]}).map(([k,[min,max]])=>[k,number(raw[k],min,max,DEFAULT_ENVIRONMENT[k])]))}}
+export function configureMaterial(material,raw,texture){if(texture&&'map'in material)material.map=texture;if(raw){const look=safeLook(raw);if(look.useColor&&material.color)material.color.set(look.color);for(const k of ['roughness','metalness','opacity'])if(k in material)material[k]=look[k];material.transparent=material.transparent||look.opacity<1;if(material.emissive){material.emissive.set(look.useColor?look.color:'#ffffff');material.emissiveIntensity=look.emissive}}material.needsUpdate=true;return material}
+export const clampSensitivity=value=>number(value,.0008,.006,.0024)

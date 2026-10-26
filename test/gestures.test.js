@@ -26,3 +26,5 @@ test('gameplay blocks scrolling without swallowing movement or jump events, and 
  assert(!event('touchmove').defaultPrevented);assert(!event('wheel',{ctrlKey:false}).defaultPrevented);assert(!event('keydown',{code:'Space'}).defaultPrevented)
  remove()
 })
+
+test('in-game sensitivity sliders retain keyboard and single-touch adjustment without allowing pinch',()=>{const input=new EventTarget();input.matches=()=>true;const remove=installZoomGuard(input,()=>true);const emit=(type,props)=>{const e=new Event(type,{cancelable:true});Object.assign(e,props);input.dispatchEvent(e);return e};assert(!emit('keydown',{code:'ArrowRight'}).defaultPrevented);assert(!emit('touchmove',{touches:[{}]}).defaultPrevented);assert(emit('touchmove',{touches:[{},{}]}).defaultPrevented);remove()})
