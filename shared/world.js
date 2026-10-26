@@ -24,7 +24,13 @@ export function navigationPath(from,to,platforms=PLATFORMS){
  const start=nearest(from),end=nearest(to);if(start<0||end<0)return []
  const queue=[start],parent=new Int32Array(width*height).fill(-1);parent[start]=start
  for(let q=0;q<queue.length;q++){const current=queue[q];if(current===end)break;const p=point(current);for(const [dx,dz]of[[1,0],[-1,0],[0,1],[0,-1]]){const x=p.x+dx,z=p.z+dz;if(!valid(x,z))continue;const next=idx(x,z);if(parent[next]!==-1)continue;parent[next]=current;queue.push(next)}}
- if(parent[end]===-1)return [];const path=[];let at=end;while(at!==start){path.push(point(at));at=parent[at]}return path.reverse()
+ if(parent[end]===-1)return [];const path=[];let at=end;while(at!==start){path.push(point(at));at=parent[at]}path.reverse()
+ // Finish toward the actual sound, not just the nearest navigation-grid square.
+ // Stop before the bank or a solid so the monster never steps onto safe bricks.
+ const endPoint=point(end),length=Math.hypot(to.x-endPoint.x,to.z-endPoint.z),steps=Math.max(1,Math.ceil(length/.1));let last=endPoint
+ for(let i=1;i<=steps;i++){const next={x:endPoint.x+(to.x-endPoint.x)*i/steps,z:endPoint.z+(to.z-endPoint.z)*i/steps};if(!waterWalkable(next.x,next.z,.48,platforms))break;last=next}
+ if(Math.hypot(last.x-endPoint.x,last.z-endPoint.z)>.01)path.push(last)
+ return path
 }
 
 // Match seeds reproduce the same irregular geometry on the server and clients.

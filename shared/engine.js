@@ -1,3 +1,4 @@
+import {monsterContact} from './contact.js'
 import {STEP,PLATFORMS,layoutPlatforms,LEVERS,BOUNDS,RADIUS,inside,solids,navigationPath,waterWalkable,settings} from './world.js'
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n)),approach=(a,b,d)=>a<b?Math.min(b,a+d):Math.max(b,a-d)
 export function createPlayer(id,name='探索者',i=0){return {id,name:String(name).slice(0,16),x:-25+(i%2)*1.2,z:28+Math.floor(i/2)*1.1,y:.65,vx:0,vz:0,vy:0,yaw:0,pitch:0,grounded:true,surface:'brick',status:'active',ack:0,coyote:.1,jumpBuffer:0,lastNoise:-99,levers:0,connected:true}}
@@ -36,7 +37,7 @@ export function movePlayer(p,input={},cfg,open=false,platforms=PLATFORMS){
 }
 function emit(s,type,data={}){s.events.push({id:++s.eventId,type,time:s.time,...data});s.events=s.events.slice(-30)}
 export function tick(s,inputs={}){
- if(s.finished)return;const platforms=layoutPlatforms(s.layoutSeed);s.time+=STEP;s.tick++
+ if(s.finished)return;const platforms=layoutPlatforms(s.layoutSeed),beforePlayers=new Map(s.players.map(p=>[p.id,{x:p.x,y:p.y,z:p.z}]));s.time+=STEP;s.tick++
  for(const p of s.players){const input=inputs[p.id]||{},motion=movePlayer(p,input,s.settings,s.open,platforms)
   if(p.status!=='active')continue
   if(motion.splash||(motion.step&&s.time-p.lastNoise>.46)){p.lastNoise=s.time;s.sounds.push({player:p.id,x:p.x,z:p.z,at:s.time});emit(s,'splash',{player:p.id,x:p.x,z:p.z,strong:motion.splash})}
@@ -53,9 +54,13 @@ export function tick(s,inputs={}){
   const wasAlert=monster.alert;monster.alert=!!monster.heard;if(monster.alert&&!wasAlert){monster.repath=0;emit(s,'alert',{monster:monster.id})}
   monster.repath-=STEP;monster.patrol-=STEP
   if(monster.repath<=0){let target=monster.heard;if(!target){if(monster.patrol<=0){const a=s.tick*.013+Number(monster.id.slice(1))*2.7;monster.destination={x:Math.cos(a)*29,z:Math.sin(a)*32};monster.patrol=7}target=monster.destination}monster.path=navigationPath(monster,target||monster,platforms);monster.repath=monster.alert?.55:2}
-  let travel=(monster.alert?s.settings.monsterSpeed:1.5)*STEP
-  while(travel>0&&monster.path.length){const next=monster.path[0],d=Math.hypot(next.x-monster.x,next.z-monster.z);if(d<.03){monster.path.shift();continue}const step=Math.min(travel,d),x=monster.x+(next.x-monster.x)/d*step,z=monster.z+(next.z-monster.z)/d*step;if(waterWalkable(x,z,.38,platforms)){monster.x=x;monster.z=z}else{monster.path=[];monster.repath=0;break}travel-=step;if(step>=d)monster.path.shift()}
-  for(const p of s.players)if(p.status==='active'&&p.grounded&&p.surface==='water'&&Math.hypot(p.x-monster.x,p.z-monster.z)<.85){p.status='dead';emit(s,'caught',{player:p.id});if(s.settings.elimination==='team')for(const other of s.players)if(other.status==='active')other.status='dead'}
+  const totalTravel=(monster.alert?s.settings.monsterSpeed:1.5)*STEP,trail=[{x:monster.x,z:monster.z,t:0}];let travel=totalTravel
+  while(travel>0&&monster.path.length){const next=monster.path[0],d=Math.hypot(next.x-monster.x,next.z-monster.z);if(d<.03){monster.path.shift();continue}const step=Math.min(travel,d),x=monster.x+(next.x-monster.x)/d*step,z=monster.z+(next.z-monster.z)/d*step;if(waterWalkable(x,z,.38,platforms)){monster.x=x;monster.z=z}else{monster.path=[];monster.repath=0;break}travel-=step;trail.push({x:monster.x,z:monster.z,t:1-travel/totalTravel});if(step>=d)monster.path.shift()}
+  trail.push({x:monster.x,z:monster.z,t:1})
+  for(const p of s.players){if(p.status!=='active')continue;const before=beforePlayers.get(p.id);let caught=false
+   for(let i=1;i<trail.length&&!caught;i++){const a=trail[i-1],b=trail[i],at=t=>({x:before.x+(p.x-before.x)*t,y:before.y+(p.y-before.y)*t,z:before.z+(p.z-before.z)*t});caught=monsterContact(at(a.t),at(b.t),a,b,platforms,solids(s.open))}
+   if(caught){p.status='dead';emit(s,'caught',{player:p.id});if(s.settings.elimination==='team')for(const other of s.players)if(other.status==='active')other.status='dead'}
+  }
  }
  s.finished=s.players.every(p=>p.status!=='active')
 }
