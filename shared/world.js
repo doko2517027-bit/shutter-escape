@@ -15,14 +15,40 @@ export const WALLS=[{x:-32,z:0,w:.8,d:74},{x:32,z:0,w:.8,d:74},{x:0,z:36,w:64,d:
 export const DOOR={x:24,z:-32,w:6,d:.5},BOUNDS={x:31.3,zMin:-36.5,zMax:35.3}
 export const RADIUS=.28,EYE=1.58
 export function inside(x,z,box,pad=0){return Math.abs(x-box.x)<box.w/2+pad&&Math.abs(z-box.z)<box.d/2+pad}
-export function platformAt(x,z){return PLATFORMS.filter(p=>inside(x,z,p)).sort((a,b)=>b.y-a.y)[0]||null}
+export function platformAt(x,z,platforms=PLATFORMS){return platforms.filter(p=>inside(x,z,p)).sort((a,b)=>b.y-a.y)[0]||null}
 export function solids(open){return open?WALLS:[...WALLS,DOOR]}
-export function waterWalkable(x,z,pad=.42){return Math.abs(x)<30.9&&z>-35&&z<35&&!PLATFORMS.some(p=>inside(x,z,p,pad))&&!WALLS.some(w=>inside(x,z,w,pad))}
-export function navigationPath(from,to){
- const origin=[-31,-35],width=63,height=71,idx=(x,z)=>(z-origin[1])*width+x-origin[0],point=i=>({x:i%width+origin[0],z:Math.floor(i/width)+origin[1]}),valid=(x,z)=>x>=-31&&x<=31&&z>=-35&&z<=35&&waterWalkable(x,z,.48)
+export function waterWalkable(x,z,pad=.42,platforms=PLATFORMS){return Math.abs(x)<30.9&&z>-35&&z<35&&!platforms.some(p=>inside(x,z,p,pad))&&!WALLS.some(w=>inside(x,z,w,pad))}
+export function navigationPath(from,to,platforms=PLATFORMS){
+ const origin=[-31,-35],width=63,height=71,idx=(x,z)=>(z-origin[1])*width+x-origin[0],point=i=>({x:i%width+origin[0],z:Math.floor(i/width)+origin[1]}),valid=(x,z)=>x>=-31&&x<=31&&z>=-35&&z<=35&&waterWalkable(x,z,.48,platforms)
  const nearest=p=>{const x=Math.round(p.x),z=Math.round(p.z);for(let r=0;r<8;r++)for(let a=-r;a<=r;a++)for(let b=-r;b<=r;b++)if(valid(x+a,z+b))return idx(x+a,z+b);return -1}
  const start=nearest(from),end=nearest(to);if(start<0||end<0)return []
  const queue=[start],parent=new Int32Array(width*height).fill(-1);parent[start]=start
  for(let q=0;q<queue.length;q++){const current=queue[q];if(current===end)break;const p=point(current);for(const [dx,dz]of[[1,0],[-1,0],[0,1],[0,-1]]){const x=p.x+dx,z=p.z+dz;if(!valid(x,z))continue;const next=idx(x,z);if(parent[next]!==-1)continue;parent[next]=current;queue.push(next)}}
  if(parent[end]===-1)return [];const path=[];let at=end;while(at!==start){path.push(point(at));at=parent[at]}return path.reverse()
+}
+
+// A match owns its seed. Reconnection and prediction reconstruct the same layout.
+const layoutCache=new Map()
+export function layoutPlatforms(seed){
+ if(!Number.isInteger(seed))return PLATFORMS
+ if(layoutCache.has(seed))return layoutCache.get(seed)
+ let value=seed>>>0
+ const random=()=>{value=(value+0x6D2B79F5)>>>0;let t=value;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296}
+ const nodes=[]
+ for(let r=0;r<10;r++)for(let c=0;c<9;c++){
+  const p={id:`cell-${c}-${r}`,c,r,x:-24+c*6,z:28-r*6,w:2.4+((c*7+r*3)%3)*.1,d:2.4+((c*5+r*2)%3)*.1,y:.65+Math.floor(r/3)*.22}
+  if(r>0&&r%3===0)p.d+=.2
+  if(c===0&&r===0){p.w=7;p.d=6.6;p.id='p0'}
+  if(!WALLS.some(w=>Math.abs(w.x-p.x)<(w.w+p.w)/2+.3&&Math.abs(w.z-p.z)<(w.d+p.d)/2+.3))nodes.push(p)
+ }
+ const start=nodes.find(p=>p.id==='p0'),parents=new Map([[start,null]]),dist=new Map([[start,0]]),todo=[start],costs=new Map()
+ const neighbors=p=>nodes.filter(n=>Math.abs(n.c-p.c)+Math.abs(n.r-p.r)===1&&!WALLS.some(w=>{for(let i=0;i<=24;i++)if(inside(p.x+(n.x-p.x)*i/24,p.z+(n.z-p.z)*i/24,w,RADIUS))return true;return false}))
+ while(todo.length){todo.sort((a,b)=>dist.get(a)-dist.get(b));const p=todo.shift();for(const n of neighbors(p)){const key=[p.id,n.id].sort().join(':');if(!costs.has(key))costs.set(key,1+random()*5);const d=dist.get(p)+costs.get(key);if(d<(dist.get(n)??Infinity)){dist.set(n,d);parents.set(n,p);if(!todo.includes(n))todo.push(n)}}}
+ const selected=new Set([start])
+ for(const target of [...LEVERS,{x:24,z:-26}]){let at=nodes.find(p=>p.x===target.x&&p.z===target.z);if(!parents.has(at))throw Error('Unreachable layout anchor');while(at){selected.add(at);at=parents.get(at)}}
+ // Branches make the route less obvious without blocking the guaranteed routes.
+ for(const p of [...selected])for(const n of neighbors(p))if(random()<.22)selected.add(n)
+ const result=[...selected].sort((a,b)=>a.r-b.r||a.c-b.c);result.push({...PLATFORMS.find(p=>p.id==='exit')})
+ if(layoutCache.size>=128)layoutCache.delete(layoutCache.keys().next().value)
+ layoutCache.set(seed,result);return result
 }
