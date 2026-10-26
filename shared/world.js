@@ -6,7 +6,7 @@ export function migratePreferences(raw={}){const next={...raw};if((next.balanceV
 export function settings(raw={}){const out={...DEFAULTS};for(const [key,[min,max]] of Object.entries(LIMITS)){const n=Number(raw[key]);if(Number.isFinite(n))out[key]=Math.max(min,Math.min(max,n))}if(raw.elimination==='team')out.elimination='team';return out}
 const cells=new Set(),add=(c,r)=>cells.add(`${c},${r}`),span=(r,a,b)=>{for(let c=a;c<=b;c++)add(c,r)}
 span(0,0,4);add(4,1);span(2,0,8);add(8,3);span(4,5,8);add(5,5);span(6,0,5);add(0,7);span(8,0,6);span(9,6,8);add(0,1);add(1,1);add(2,3);add(2,4);add(2,5);add(5,7)
-export const PLATFORMS=[...cells].map((cell,i)=>{const[c,r]=cell.split(',').map(Number);return {id:'p'+i,c,r,x:-24+c*6,z:28-r*6,w:2.8+((c*7+r*3)%3)*.1,d:2.8+((c*5+r*2)%3)*.1,y:.65+Math.floor(r/3)*.22}})
+export const PLATFORMS=[...cells].map((cell,i)=>{const[c,r]=cell.split(',').map(Number);return {id:'p'+i,c,r,x:-24+c*6,z:28-r*6,w:2.4+((c*7+r*3)%3)*.1,d:2.4+((c*5+r*2)%3)*.1,y:.65+Math.floor(r/3)*.22}})
 PLATFORMS.find(p=>p.c===0&&p.r===0).w=7
 PLATFORMS.find(p=>p.c===0&&p.r===0).d=6.6
 PLATFORMS.push({id:'exit',x:24,z:-30,w:5.8,d:12,y:1.31,c:8,r:10})
