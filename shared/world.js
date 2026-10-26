@@ -27,28 +27,41 @@ export function navigationPath(from,to,platforms=PLATFORMS){
  if(parent[end]===-1)return [];const path=[];let at=end;while(at!==start){path.push(point(at));at=parent[at]}return path.reverse()
 }
 
-// A match owns its seed. Reconnection and prediction reconstruct the same layout.
+// Match seeds reproduce the same irregular geometry on the server and clients.
 const layoutCache=new Map()
+export function platformGap(a,b){const distance=Math.hypot(b.x-a.x,b.z-a.z);if(!distance)return 0;const ux=Math.abs(b.x-a.x)/distance,uz=Math.abs(b.z-a.z)/distance;const edge=p=>Math.min(ux>.0001?p.w/2/ux:Infinity,uz>.0001?p.d/2/uz:Infinity);return distance-edge(a)-edge(b)}
+export function jumpConnection(a,b){
+ if(a===b||Math.hypot(a.x-b.x,a.z-b.z)>(a.id==='exit'||b.id==='exit'?16:8.5)||Math.abs(a.y-b.y)>.23)return false
+ if(platformGap(a,b)>(Math.abs(a.y-b.y)>.05?2.95:3.15))return false
+ return !WALLS.some(w=>{for(let i=0;i<=32;i++)if(inside(a.x+(b.x-a.x)*i/32,a.z+(b.z-a.z)*i/32,w,RADIUS+.04))return true;return false})
+}
 export function layoutPlatforms(seed){
  if(!Number.isInteger(seed))return PLATFORMS
  if(layoutCache.has(seed))return layoutCache.get(seed)
  let value=seed>>>0
  const random=()=>{value=(value+0x6D2B79F5)>>>0;let t=value;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return ((t^(t>>>14))>>>0)/4294967296}
- const nodes=[]
- for(let r=0;r<10;r++)for(let c=0;c<9;c++){
-  const p={id:`cell-${c}-${r}`,c,r,x:-24+c*6,z:28-r*6,w:2.4+((c*7+r*3)%3)*.1,d:2.4+((c*5+r*2)%3)*.1,y:.65+Math.floor(r/3)*.22}
-  if(r>0&&r%3===0)p.d+=.2
-  if(c===0&&r===0){p.w=7;p.d=6.6;p.id='p0'}
-  if(!WALLS.some(w=>Math.abs(w.x-p.x)<(w.w+p.w)/2+.3&&Math.abs(w.z-p.z)<(w.d+p.d)/2+.3))nodes.push(p)
+ const anchorCells=new Set(['0,0','7,2','1,6','6,9'])
+ for(let attempt=0;attempt<256;attempt++){
+  const nodes=[],scatter=attempt<32?1.5:1.1
+  for(let r=0;r<10;r++)for(let c=0;c<9;c++){
+   const offset=()=> (.3+random()*(scatter-.3))*(random()<.5?-1:1);const anchored=anchorCells.has(`${c},${r}`),p={id:`cell-${c}-${r}`,c,r,x:-24+c*6+(anchored?0:offset()),z:28-r*6+(anchored?0:offset()),w:(attempt<32?2.6:3.1)+random()*.8,d:(attempt<32?2.6:3.1)+random()*.8,y:.65+Math.floor(r/3)*.22}
+   if(c===0&&r===0){p.w=7;p.d=6.6;p.id='p0'}
+   const blocked=WALLS.some(w=>Math.abs(w.x-p.x)<(w.w+p.w)/2+.3&&Math.abs(w.z-p.z)<(w.d+p.d)/2+.3)
+   if(!blocked)nodes.push(p)
+  }
+  const start=nodes.find(p=>p.id==='p0');if(!start)continue
+  // Keep a water gap between unrelated bricks and the spawn landing.
+  const exit={...PLATFORMS.find(p=>p.id==='exit')};const filtered=nodes.filter(p=>(p===start||Math.abs(exit.x-p.x)>=(exit.w+p.w)/2+.2||Math.abs(exit.z-p.z)>=(exit.d+p.d)/2+.2)&&(p===start||!nodes.some(q=>q!==p&&(q.id==='p0'||q.r<p.r||q.r===p.r&&q.c<p.c)&&Math.abs(q.x-p.x)<(q.w+p.w)/2+.2&&Math.abs(q.z-p.z)<(q.d+p.d)/2+.2)));filtered.push(exit)
+  const neighbors=new Map(filtered.map(p=>[p,filtered.filter(n=>jumpConnection(p,n))]))
+  const parents=new Map([[start,null]]),dist=new Map([[start,0]]),todo=[start],costs=new Map()
+  while(todo.length){todo.sort((a,b)=>dist.get(a)-dist.get(b));const p=todo.shift();for(const n of neighbors.get(p)){const key=[p.id,n.id].sort().join(':');if(!costs.has(key))costs.set(key,1+random()*5);const d=dist.get(p)+costs.get(key);if(d<(dist.get(n)??Infinity)){dist.set(n,d);parents.set(n,p);if(!todo.includes(n))todo.push(n)}}}
+  const goals=[...LEVERS.map(l=>filtered.find(p=>inside(l.x,l.z,p)&&Math.abs(p.y-l.y)<.1)),exit]
+  if(goals.some(p=>!p||!parents.has(p)))continue
+  const selected=new Set([start]);for(const goal of goals)for(let at=goal;at;at=parents.get(at))selected.add(at)
+  for(const p of [...selected])for(const n of neighbors.get(p))if(random()<.17)selected.add(n)
+  const result=[start,...[...selected].filter(p=>p!==start&&p!==exit),exit]
+  if(layoutCache.size>=128)layoutCache.delete(layoutCache.keys().next().value)
+  layoutCache.set(seed,result);return result
  }
- const start=nodes.find(p=>p.id==='p0'),parents=new Map([[start,null]]),dist=new Map([[start,0]]),todo=[start],costs=new Map()
- const neighbors=p=>nodes.filter(n=>Math.abs(n.c-p.c)+Math.abs(n.r-p.r)===1&&!WALLS.some(w=>{for(let i=0;i<=24;i++)if(inside(p.x+(n.x-p.x)*i/24,p.z+(n.z-p.z)*i/24,w,RADIUS))return true;return false}))
- while(todo.length){todo.sort((a,b)=>dist.get(a)-dist.get(b));const p=todo.shift();for(const n of neighbors(p)){const key=[p.id,n.id].sort().join(':');if(!costs.has(key))costs.set(key,1+random()*5);const d=dist.get(p)+costs.get(key);if(d<(dist.get(n)??Infinity)){dist.set(n,d);parents.set(n,p);if(!todo.includes(n))todo.push(n)}}}
- const selected=new Set([start])
- for(const target of [...LEVERS,{x:24,z:-26}]){let at=nodes.find(p=>p.x===target.x&&p.z===target.z);if(!parents.has(at))throw Error('Unreachable layout anchor');while(at){selected.add(at);at=parents.get(at)}}
- // Branches make the route less obvious without blocking the guaranteed routes.
- for(const p of [...selected])for(const n of neighbors(p))if(random()<.22)selected.add(n)
- const result=[...selected].sort((a,b)=>a.r-b.r||a.c-b.c);result.push({...PLATFORMS.find(p=>p.id==='exit')})
- if(layoutCache.size>=128)layoutCache.delete(layoutCache.keys().next().value)
- layoutCache.set(seed,result);return result
+ throw Error('Could not build a traversable irregular stage')
 }
