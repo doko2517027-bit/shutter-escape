@@ -15,7 +15,7 @@ export function mountAccounts(app,options={}){
  const projectId=options.projectId||config.projectId,apiKey=options.apiKey||config.apiKey,adminEmail=options.adminEmail??process.env.ADMIN_EMAIL
  const verify=options.verify||createTokenVerifier(projectId)
  const lookup=options.lookup||(async token=>{const response=await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(apiKey)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idToken:token}),signal:AbortSignal.timeout(8000)});if(!response.ok)throw Error('INVALID_IDENTITY');return (await response.json()).users?.[0]})
- const origins=new Set(['https://shutter-escape-test.onrender.com','https://shutter-escape-lab.kooooooo3333.chatgpt.site','http://127.0.0.1:5181','http://localhost:5181'])
+ const origins=new Set(['https://switch-and-shutter.onrender.com','https://shutter-escape-test.onrender.com','https://shutter-escape-lab.kooooooo3333.chatgpt.site','http://127.0.0.1:5181','http://localhost:5181'])
  app.use('/api',(req,res,next)=>{res.setHeader('Cache-Control','no-store');const origin=req.headers.origin;if(origin&&origins.has(origin)){res.setHeader('Access-Control-Allow-Origin',origin);res.setHeader('Vary','Origin');res.setHeader('Access-Control-Allow-Headers','Authorization, Content-Type');res.setHeader('Access-Control-Allow-Methods','GET, OPTIONS')}if(req.method==='OPTIONS'){res.sendStatus(origin&&!origins.has(origin)?403:204);return}next()})
  const authenticate=async req=>{
   const header=req.headers.authorization||'';if(!header.startsWith('Bearer ')||header.length>8192)throw Error('UNAUTHENTICATED')

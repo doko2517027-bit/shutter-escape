@@ -20,6 +20,8 @@ let account=null,accountForm='login',shared=null,localAssets={},migrationAttempt
 let mode='title',previousMode='title',playType='solo',state=null,meId='solo',view=null,assets={},draft=null,assetRole='monster',notice='',busy=false,ws=null,lobby=null,host=null,roomCode='',token='',mySessionId='',pending=[],seq=0,predicted=null,offset={x:0,y:0,z:0},snapshots=[],lastEvent=0,lastTick=-1,rtt=0,network='',reconnectAt=0,reconnectAttempt=0,manualClose=false,acc=0,lastFrame=performance.now(),interact=false,jump=false,look={yaw:0,pitch:0},keys=new Set(),stick={right:0,forward:0},targetName='',hudLast=0,outcomeShown=false
 const remoteBuffer=new NetworkBuffer();
 const endpoint=String(import.meta.env.VITE_SERVER_URL||(location.hostname.endsWith('.chatgpt.site')?'https://shutter-escape-test.onrender.com':location.origin)).replace(/\/$/,'')
+// The static entry opens immediately; wake the co-op server without blocking solo play.
+if(endpoint!==location.origin)fetch(endpoint+'/api/health',{cache:'no-store',signal:AbortSignal.timeout(90000)}).catch(()=>{})
 let pointerFallback=false,dragLook=null,sensitivityOpen=false
 const btn=(text,cmd,attrs='')=>`<button type="button" data-cmd="${cmd}" ${attrs}>${text}</button>`
 function tell(message){notice=message;if(mode==='game')toast(message);else render()}

@@ -41,3 +41,5 @@ test('HTTP admin access rejects guests, unverified users, other users, revoked a
   assert.equal((await(await get('/api/account',good)).json()).admin,true)
  }finally{await game.close()}
 })
+
+test('static game origin can check accounts without granting other origins access',async()=>{const game=createGameServer();await new Promise(r=>game.server.listen(0,'127.0.0.1',r));const url='http://127.0.0.1:'+game.server.address().port+'/api/account';try{const origin='https://switch-and-shutter.onrender.com';const allowed=await fetch(url,{headers:{Origin:origin}});assert.equal(allowed.headers.get('access-control-allow-origin'),origin);const denied=await fetch(url,{method:'OPTIONS',headers:{Origin:'https://unrelated.example'}});assert.equal(denied.status,403);assert.equal(denied.headers.get('access-control-allow-origin'),null)}finally{await game.close()}})
