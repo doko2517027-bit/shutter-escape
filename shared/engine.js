@@ -18,7 +18,7 @@ export function movePlayer(p,input={},cfg,open=false,platforms=PLATFORMS){
  const speed=cfg.speed*(wasWater?.68:1)*(p.grounded?1:tempo),dx=(Math.cos(p.yaw)*r-Math.sin(p.yaw)*f)*speed,dz=(-Math.sin(p.yaw)*r-Math.cos(p.yaw)*f)*speed,acc=(n?cfg.acceleration:cfg.friction)*dt
  p.vx=approach(p.vx,dx,acc);p.vz=approach(p.vz,dz,acc)
  // Walking into an ordinary brick from water climbs its edge. Lever islands have no handhold.
- if(wasWater&&n>0){const nx=p.x+p.vx*dt,nz=p.z+p.vz*dt;const ledge=platforms.find(f=>!f.leverId&&inside(nx,nz,f,RADIUS+.08)&&!inside(p.x,p.z,f)&&((f.x-p.x)*p.vx+(f.z-p.z)*p.vz)>0);if(ledge){const x=clamp(nx,ledge.x-ledge.w/2+.09,ledge.x+ledge.w/2-.09),z=clamp(nz,ledge.z-ledge.d/2+.09,ledge.z+ledge.d/2-.09);if(!solids(open).some(b=>inside(x,z,b,RADIUS))){p.x=x;p.z=z;p.y=ledge.y;p.vy=0;p.grounded=true;p.surface='brick';p.waterEntry=false}}}
+ if(p.grounded&&n>0){const nx=p.x+p.vx*dt,nz=p.z+p.vz*dt;const ledge=platforms.find(f=>!f.leverId&&(wasWater?f.y<=2.05:f.stair&&f.y>p.y+.01&&f.y-p.y<=.24)&&inside(nx,nz,f,RADIUS+.08)&&!inside(p.x,p.z,f)&&((f.x-p.x)*p.vx+(f.z-p.z)*p.vz)>0);if(ledge){const x=clamp(nx,ledge.x-ledge.w/2+.09,ledge.x+ledge.w/2-.09),z=clamp(nz,ledge.z-ledge.d/2+.09,ledge.z+ledge.d/2-.09);if(!solids(open).some(b=>inside(x,z,b,RADIUS))){p.x=x;p.z=z;p.y=ledge.y;p.vy=0;p.grounded=true;p.surface='brick';p.waterEntry=false}}}
  const restricted=f=>!!f.leverId&&p.waterEntry===true
  const previousY=p.y
  // A falling player may overlap a raised edge before their feet drop below it.
@@ -38,7 +38,7 @@ export function movePlayer(p,input={},cfg,open=false,platforms=PLATFORMS){
  for(const platform of platforms)if(!restricted(platform)&&inside(p.x,p.z,platform)&&previousY>=platform.y-.06&&p.y<=platform.y&&p.vy<=0&&(!support||platform.y>support.y))support=platform
  if(support){p.y=support.y;p.vy=0;p.grounded=true;p.surface='brick';p.waterEntry=false}else if(p.y<=0){p.y=0;p.vy=0;p.grounded=true;p.surface='water'}else p.surface='air'
  p.ack=input.seq||p.ack
- return {splash:p.grounded&&p.surface==='water'&&(!wasWater||!wasGrounded),step:p.grounded&&p.surface==='water'&&Math.hypot(p.vx,p.vz)>.2}
+ return {land:p.grounded&&p.surface==='brick'&&!wasGrounded,brickStep:p.grounded&&p.surface==='brick'&&Math.hypot(p.vx,p.vz)>.2,splash:p.grounded&&p.surface==='water'&&(!wasWater||!wasGrounded),step:p.grounded&&p.surface==='water'&&Math.hypot(p.vx,p.vz)>.2}
 }
 export function canUseLever(p,l,platforms=PLATFORMS){return p.grounded&&p.surface==='brick'&&Math.hypot(p.x-l.x,p.z-l.z)<2.1&&platforms.some(f=>f.leverId===l.id&&inside(p.x,p.z,f)&&Math.abs(p.y-f.y)<.08)}
 function emit(s,type,data={}){s.events.push({id:++s.eventId,type,time:s.time,...data});s.events=s.events.slice(-30)}
@@ -47,13 +47,16 @@ export function tick(s,inputs={}){
  for(const p of s.players){const input=inputs[p.id]||{},motion=movePlayer(p,input,s.settings,s.open,platforms)
   if(p.status!=='active')continue
   if(motion.splash||(motion.step&&s.time-p.lastNoise>.46)){p.lastNoise=s.time;s.sounds.push({player:p.id,x:p.x,z:p.z,at:s.time});emit(s,'splash',{player:p.id,x:p.x,z:p.z,strong:motion.splash})}
-  if(input.interact){const i=LEVERS.findIndex(l=>canUseLever(p,l,platforms));if(i>=0&&!s.levers[i]){s.levers[i]=true;p.levers++;emit(s,'lever',{index:i,player:p.id});if(s.levers.every(Boolean)){s.open=true;emit(s,'door')}}}
+  if(motion.land)emit(s,'brickLand',{player:p.id,x:p.x,y:p.y,z:p.z})
+  else if(motion.brickStep&&s.time-(p.lastBrickNoise??-99)>.43){p.lastBrickNoise=s.time;emit(s,'brickStep',{player:p.id,x:p.x,y:p.y,z:p.z})}
+  if(input.interact){const i=LEVERS.findIndex(l=>canUseLever(p,l,platforms));if(i>=0&&!s.levers[i]){s.levers[i]=true;p.levers++;emit(s,'lever',{index:i,player:p.id,x:LEVERS[i].x,y:LEVERS[i].y,z:LEVERS[i].z});if(s.levers.every(Boolean)){s.open=true;emit(s,'door',{x:DOOR.x,y:EXIT.y,z:DOOR.z})}}}
   if(s.open&&Math.abs(p.x-EXIT.x)<EXIT.w/2-.2&&p.z<DOOR.z-2&&p.y>EXIT.y-.3){p.status='escaped';emit(s,'escape',{player:p.id})}
  }
  s.sounds=s.sounds.filter(n=>s.time-n.at<s.settings.memory)
  const assigned=new Map()
  for(const monster of s.monsters){
   if(prepareMonster(s,monster,platforms,assigned))emit(s,'alert',{monster:monster.id})
+  monster.nextCry??=7+Number(monster.id.slice(1))*3.7;if(s.time>=monster.nextCry){monster.nextCry=s.time+7+((Math.sin(s.tick*12.9898+(s.layoutSeed||0))*43758.5453)%1+1)%1*16;emit(s,'monsterCry',{monster:monster.id})}
   const totalTravel=(monster.alert?s.settings.monsterSpeed:MONSTER_BEHAVIOR.patrolSpeed)*STEP,trail=[{x:monster.x,z:monster.z,t:0}];let travel=totalTravel
   while(travel>0&&monster.path.length){const next=monster.path[0],d=Math.hypot(next.x-monster.x,next.z-monster.z);if(d<.03){monster.path.shift();continue}const step=Math.min(travel,d),x=monster.x+(next.x-monster.x)/d*step,z=monster.z+(next.z-monster.z)/d*step;if(waterWalkable(x,z,.38,platforms)){monster.x=x;monster.z=z}else{monster.path=[];monster.repath=0;break}travel-=step;trail.push({x:monster.x,z:monster.z,t:1-travel/totalTravel});if(step>=d)monster.path.shift()}
   trail.push({x:monster.x,z:monster.z,t:1})

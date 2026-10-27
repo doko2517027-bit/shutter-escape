@@ -2,20 +2,20 @@ rules_version = '2';
 service cloud.firestore {
  match /databases/{database}/documents {
   function admin() { return request.auth != null && request.auth.token.email_verified == true && request.auth.uid == get(/databases/$(database)/documents/internal/assetAdmin).data.uid; }
-  function role(r) { return r in ['background','world','monster','door','lever','brick','wall','seabed','structure','pipe','lamp','player','effect','water','ui','logo','hands']; }
+  function role(r) { return r in ['background','world','monster','door','lever','brick','wall','seabed','structure','pipe','lamp','player','effect','water','ui','logo','hands','sound_player_splash','sound_player_water','sound_player_brick','sound_player_land','sound_monster_walk','sound_monster_run','sound_monster_cry','sound_monster_attack','sound_ambient_drip','sound_ambient_hollow','sound_lever','sound_door']; }
   function published(id, r) { let p = get(/databases/$(database)/documents/sharedAssets/$(r)).data; return p.uploadId == id || p.previous == id; }
   match /internal/{id} { allow read, write: if false; }
   match /sharedAssets/{r} {
    allow read: if true;
    allow create, update: if admin() && request.resource.data.updatedAt == request.time && (
-    (r == '_settings' && request.resource.data.keys().hasOnly(['title','environment','updatedAt']) && request.resource.data.title is string && request.resource.data.title.size() <= 40 && request.resource.data.environment is map) ||
+    (r == '_settings' && request.resource.data.keys().hasOnly(['title','environment','audio','updatedAt']) && request.resource.data.title is string && request.resource.data.title.size() <= 40 && request.resource.data.environment is map && (!('audio' in request.resource.data) || request.resource.data.audio is map)) ||
     (role(r) && request.resource.data.keys().hasOnly(['role','uploadId','previous','transform','look','updatedAt']) && request.resource.data.role == r && request.resource.data.uploadId is string && request.resource.data.previous is string && request.resource.data.transform is map && (request.resource.data.look == null || request.resource.data.look is map) && (request.resource.data.uploadId == '' || get(/databases/$(database)/documents/assetUploads/$(request.resource.data.uploadId)).data.role == r))
    );
   }
   match /assetUploads/{id} {
    allow get: if admin() || published(id, resource.data.role);
    allow list: if admin();
-   allow create: if admin() && request.resource.data.keys().hasOnly(['role','name','kind','mime','size','count','sha256','createdAt']) && role(request.resource.data.role) && request.resource.data.name is string && request.resource.data.name.size() <= 160 && request.resource.data.kind in ['image','glb'] && request.resource.data.size is int && request.resource.data.size > 0 && request.resource.data.size <= 16777216 && request.resource.data.count is int && request.resource.data.count > 0 && request.resource.data.count <= 43 && request.resource.data.sha256 is string && request.resource.data.sha256.size() == 64 && request.resource.data.createdAt == request.time;
+   allow create: if admin() && request.resource.data.keys().hasOnly(['role','name','kind','mime','size','count','sha256','createdAt']) && role(request.resource.data.role) && request.resource.data.name is string && request.resource.data.name.size() <= 160 && request.resource.data.kind in ['image','glb','audio'] && request.resource.data.size is int && request.resource.data.size > 0 && request.resource.data.size <= 16777216 && request.resource.data.count is int && request.resource.data.count > 0 && request.resource.data.count <= 43 && request.resource.data.sha256 is string && request.resource.data.sha256.size() == 64 && request.resource.data.createdAt == request.time;
    allow delete: if admin();
    match /chunks/{chunk} {
     allow read: if admin() || published(id, get(/databases/$(database)/documents/assetUploads/$(id)).data.role);
