@@ -1,4 +1,4 @@
-import {prepareMonster,frontFacing,MONSTER_BEHAVIOR} from './monsters.js'
+import {prepareMonster,MONSTER_BEHAVIOR} from './monsters.js'
 import {monsterContact} from './contact.js'
 import {STEP,ARENA,START,EXIT,PLATFORMS,layoutPlatforms,LEVERS,DOOR,BOUNDS,RADIUS,inside,solids,navigationPath,waterWalkable,settings} from './world.js'
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n)),approach=(a,b,d)=>a<b?Math.min(b,a+d):Math.max(b,a-d)
@@ -60,8 +60,8 @@ export function tick(s,inputs={}){
   const totalTravel=(monster.alert?s.settings.monsterSpeed:MONSTER_BEHAVIOR.patrolSpeed)*STEP,trail=[{x:monster.x,z:monster.z,t:0}];let travel=totalTravel
   while(travel>0&&monster.path.length){const next=monster.path[0],d=Math.hypot(next.x-monster.x,next.z-monster.z);if(d<.03){monster.path.shift();continue}const step=Math.min(travel,d),x=monster.x+(next.x-monster.x)/d*step,z=monster.z+(next.z-monster.z)/d*step;if(waterWalkable(x,z,.38,platforms)){monster.x=x;monster.z=z}else{monster.path=[];monster.repath=0;break}travel-=step;trail.push({x:monster.x,z:monster.z,t:1-travel/totalTravel});if(step>=d)monster.path.shift()}
   trail.push({x:monster.x,z:monster.z,t:1})
-  for(const p of s.players){if(p.status!=='active')continue;const before=beforePlayers.get(p.id);if(!frontFacing(trail[0],{...before,yaw:p.yaw}))continue;let caught=false
-   for(let i=1;i<trail.length&&!caught;i++){const a=trail[i-1],b=trail[i],at=t=>({x:before.x+(p.x-before.x)*t,y:before.y+(p.y-before.y)*t,z:before.z+(p.z-before.z)*t});caught=monsterContact(at(a.t),at(b.t),a,b,platforms,solids(s.open),p.yaw)}
+  for(const p of s.players){if(p.status!=='active')continue;const before=beforePlayers.get(p.id);let caught=false
+   for(let i=1;i<trail.length&&!caught;i++){const a=trail[i-1],b=trail[i],at=t=>({x:before.x+(p.x-before.x)*t,y:before.y+(p.y-before.y)*t,z:before.z+(p.z-before.z)*t});caught=monsterContact(at(a.t),at(b.t),a,b,platforms,solids(s.open))}
    if(caught){p.status='dead';emit(s,'caught',{player:p.id});if(s.settings.elimination==='team')for(const other of s.players)if(other.status==='active')other.status='dead'}
   }
  }
