@@ -1,5 +1,5 @@
 export const BRAND={title:'Switch & Shutter',subtitle:'FIRST-PERSON COOPERATIVE HORROR',version:'TEST BUILD 01',instruction:'鉄のシャッターのゴールの扉から出たらクリア。'}
-export const PROTOCOL_VERSION=2,STEP=1/30,MAX_PLAYERS=4
+export const PROTOCOL_VERSION=3,STEP=1/30,MAX_PLAYERS=4
 export const DEFAULTS={speed:4.6,jump:5.6,jumpTempo:1.2,gravity:13,acceleration:26,friction:22,monsterSpeed:24,hearing:72,memory:9,elimination:'individual'}
 export const LIMITS={speed:[3,6],jump:[4.5,7],jumpTempo:[1,1.5],gravity:[10,20],acceleration:[12,45],friction:[10,40],monsterSpeed:[9,32],hearing:[20,140],memory:[3,18]}
 export function migratePreferences(raw={}){const next={...raw};if((next.balanceVersion||0)<2&&next.monsterSpeed===17)next.monsterSpeed=DEFAULTS.monsterSpeed;if((next.balanceVersion||0)<3&&next.hearing===48)next.hearing=DEFAULTS.hearing;next.balanceVersion=3;return next}
@@ -32,8 +32,12 @@ export function navigationPath(from,to,platforms=PLATFORMS,avoid=null){
  const endPoint=point(best),distance=Math.hypot(to.x-endPoint.x,to.z-endPoint.z),steps=Math.max(1,Math.ceil(distance/.1));let last=endPoint
  for(let i=1;i<=steps;i++){const next={x:endPoint.x+(to.x-endPoint.x)*i/steps,z:endPoint.z+(to.z-endPoint.z)*i/steps};if(!waterWalkable(next.x,next.z,.48,platforms)||avoid&&(next.x-avoid.x)**2+(next.z-avoid.z)**2<avoid.radius**2)break;last=next}
  if(Math.hypot(last.x-endPoint.x,last.z-endPoint.z)>.01)path.push(last)
- return path
+ const smooth=[];let current=from,index=0
+ while(index<path.length){let far=index;for(let i=path.length-1;i>=index;i--)if(navigationSegment(current,path[i],platforms,avoid)){far=i;break}if(!navigationSegment(current,path[far],platforms,avoid))break;smooth.push(path[far]);current=path[far];index=far+1}
+ return smooth
 }
+export function navigationSegment(from,to,platforms=PLATFORMS,avoid=null){const steps=Math.max(1,Math.ceil(Math.hypot(to.x-from.x,to.z-from.z)/.16));for(let i=1;i<=steps;i++){const x=from.x+(to.x-from.x)*i/steps,z=from.z+(to.z-from.z)*i/steps;if(!waterWalkable(x,z,.48,platforms)||avoid&&(x-avoid.x)**2+(z-avoid.z)**2<avoid.radius**2)return false}return true}
+
 
 // Match seeds reproduce the same irregular geometry on the server and clients.
 const layoutCache=new Map()
@@ -61,13 +65,15 @@ export function layoutPlatforms(seed){
   // Keep a water gap between unrelated bricks and the spawn landing.
   const exit={...EXIT};const filtered=nodes.filter(p=>(p===start||Math.abs(exit.x-p.x)>=(exit.w+p.w)/2+.2||Math.abs(exit.z-p.z)>=(exit.d+p.d)/2+.2)&&(p===start||!nodes.some(q=>q!==p&&(q.id==='p0'||q.r<p.r||q.r===p.r&&q.c<p.c)&&Math.abs(q.x-p.x)<(q.w+p.w)/2+.2&&Math.abs(q.z-p.z)<(q.d+p.d)/2+.2)));filtered.push(exit)
   const cells=new Map(filtered.map(p=>[`${p.c},${p.r}`,p]));const neighbors=new Map(filtered.map(p=>{const candidates=new Set([exit]);if(p===exit)for(const n of filtered)candidates.add(n);else for(let r=p.r-1;r<=p.r+1;r++)for(let c=p.c-1;c<=p.c+1;c++){const n=cells.get(`${c},${r}`);if(n)candidates.add(n)}return [p,[...candidates].filter(n=>jumpConnection(p,n))]}))
-  const parents=new Map([[start,null]]),dist=new Map([[start,0]]),todo=[start],costs=new Map()
-  while(todo.length){todo.sort((a,b)=>dist.get(a)-dist.get(b));const p=todo.shift();for(const n of neighbors.get(p)){const key=[p.id,n.id].sort().join(':');if(!costs.has(key))costs.set(key,1+random()*5);const d=dist.get(p)+costs.get(key);if(d<(dist.get(n)??Infinity)){dist.set(n,d);parents.set(n,p);if(!todo.includes(n))todo.push(n)}}}
   const goals=[...LEVERS.map(l=>filtered.find(p=>inside(l.x,l.z,p)&&Math.abs(p.y-l.y)<.1)),exit]
-  if(goals.some(p=>!p||!parents.has(p)))continue
-  const selected=new Set([start]);for(const goal of goals)for(let at=goal;at;at=parents.get(at))selected.add(at)
-  for(const p of [...selected])for(const n of neighbors.get(p))if(random()<.15)selected.add(n)
-  let extras=0;for(const p of filtered)if(extras<6&&!selected.has(p)&&random()<.15&&!anchorCells.has(`${p.c},${p.r}`)){p.optional=true;selected.add(p);extras++}
+  if(goals.some(p=>!p))continue
+  const selected=new Set([start]),links=new Map(filtered.map(p=>[p,new Set()]));let failed=false
+  // Connect each goal to the existing route, avoiding redundant parallel bridges.
+  for(const goal of goals){const parents=new Map([...selected].map(p=>[p,null])),todo=[...selected];for(let i=0;i<todo.length&&!parents.has(goal);i++)for(const n of neighbors.get(todo[i]))if(!parents.has(n)){parents.set(n,todo[i]);todo.push(n)}if(!parents.has(goal)){failed=true;break}for(let at=goal;parents.get(at);at=parents.get(at)){const parent=parents.get(at);selected.add(at);selected.add(parent);links.get(at).add(parent);links.get(parent).add(at)}}
+  if(failed)continue
+  // Narrow nonessential landing margins while preserving every required jump edge.
+  for(let round=0;round<16;round++)for(const p of selected){if(p===start||p===exit)continue;for(const axis of ['w','d']){const previous=p[axis];p[axis]=Math.max(2.5,previous-.08);if([...links.get(p)].some(n=>!jumpConnection(p,n)))p[axis]=previous}}
+  let extras=0;for(const p of filtered)if(extras<1&&!selected.has(p)&&random()<.15&&!anchorCells.has(`${p.c},${p.r}`)){p.optional=true;selected.add(p);extras++}
   const result=[start,...[...selected].filter(p=>p!==start&&p!==exit),exit]
   if(layoutCache.size>=128)layoutCache.delete(layoutCache.keys().next().value)
   layoutCache.set(seed,result);return result

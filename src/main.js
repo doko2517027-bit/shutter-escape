@@ -1,3 +1,4 @@
+import {MonsterFrames} from './monster-frames.js'
 import {NetworkBuffer} from './network-buffer.js'
 import {createSharedAssets} from './shared-assets.js'
 import {SURFACE_ROLES,DEFAULT_LOOK,DEFAULT_ENVIRONMENT,safeLook,safeEnvironment,clampSensitivity} from './appearance.js'
@@ -18,7 +19,7 @@ try{config={...config,...migratePreferences(JSON.parse(localStorage.getItem('shu
 if(['シャッター・エスケープ','Shutter Escape'].includes(config.title))config.title=BRAND.title
 let account=null,accountForm='login',shared=null,localAssets={},migrationAttempted=false
 let mode='title',previousMode='title',playType='solo',state=null,meId='solo',view=null,assets={},draft=null,assetRole='monster',notice='',busy=false,ws=null,lobby=null,host=null,roomCode='',token='',mySessionId='',pending=[],seq=0,predicted=null,offset={x:0,y:0,z:0},snapshots=[],lastEvent=0,lastTick=-1,rtt=0,network='',reconnectAt=0,reconnectAttempt=0,manualClose=false,acc=0,lastFrame=performance.now(),interact=false,jump=false,look={yaw:0,pitch:0},keys=new Set(),stick={right:0,forward:0},targetName='',hudLast=0,outcomeShown=false
-const remoteBuffer=new NetworkBuffer();
+const remoteBuffer=new NetworkBuffer(),monsterFrames=new MonsterFrames();
 const endpoint=String(import.meta.env.VITE_SERVER_URL||(location.hostname.endsWith('.chatgpt.site')?'https://shutter-escape-test.onrender.com':location.origin)).replace(/\/$/,'')
 // The static entry opens immediately; wake the co-op server without blocking solo play.
 if(endpoint!==location.origin)fetch(endpoint+'/api/health',{cache:'no-store',signal:AbortSignal.timeout(90000)}).catch(()=>{})
@@ -116,11 +117,11 @@ canvas.addEventListener('pointermove',e=>{if(mode!=='game'||dragLook?.id!==e.poi
 canvas.addEventListener('pointerup',()=>{dragLook=null});canvas.addEventListener('pointercancel',()=>{dragLook=null})
 function installTouch(){installTouchControls({joystick:root.querySelector('#joystick'),lookZone:root.querySelector('#touch-look'),buttons:[...root.querySelectorAll('.touch-buttons [data-cmd]')].map(element=>({element,action:element.dataset.cmd})),onMove:value=>{stick=value},onLook:(dx,dy)=>{if(sensitivityOpen)return;look.yaw-=dx*config.sensitivity*1.6;look.pitch=Math.max(-1.35,Math.min(1.35,look.pitch-dy*config.sensitivity*1.6))},onAction:cmd=>{if(cmd==='jump')jump=true;if(cmd==='interact')interact=true}})}
 function loop(now){const outgoing=[];const dt=Math.min(.1,(now-lastFrame)/1000);lastFrame=now;acc+=dt
- while(acc>=STEP){acc-=STEP;if(state&&playType==='solo'&&mode==='game'){const c=command();tick(state,{[meId]:c})}else if(state&&playType==='online'&&ws?.readyState===WebSocket.OPEN&&!state.finished&&predicted?.status==='active'){const c=command();movePlayer(predicted,c,state.settings,state.open,layoutPlatforms(state.layoutSeed));pending.push(c);if(pending.length>180){ws.close();break}outgoing.push(c)}}
+ while(acc>=STEP){acc-=STEP;if(state&&playType==='solo'&&mode==='game'){const c=command();monsterFrames.capture(state);tick(state,{[meId]:c})}else if(state&&playType==='online'&&ws?.readyState===WebSocket.OPEN&&!state.finished&&predicted?.status==='active'){const c=command();movePlayer(predicted,c,state.settings,state.open,layoutPlatforms(state.layoutSeed));pending.push(c);if(pending.length>180){ws.close();break}outgoing.push(c)}}
  if(outgoing.length)send('input',{commands:outgoing})
  if(reconnectAt&&now>reconnectAt&&!manualClose){reconnectAt=0;try{const session=JSON.parse(sessionStorage.getItem('shutter.session')||'null');if(session&&reconnectAttempt++<6)connect('resume',session);else{network='接続を復帰できませんでした。タイトルへ戻ってください。';tell(network)}}catch{}}
  if(state){handleEvents();if(now-hudLast>120){hudLast=now;updateHUD()}}
- const visual=playType==='online'?interpolate():state;let me=playType==='online'&&predicted?{...predicted,x:predicted.x+offset.x,y:predicted.y+offset.y,z:predicted.z+offset.z}:state?.players.find(p=>p.id===meId);const decay=Math.exp(-dt*13);for(const k of['x','y','z'])offset[k]*=decay
+ const visual=playType==='online'?interpolate():monsterFrames.sample(state,mode==='game'?acc/STEP:1);let me=playType==='online'&&predicted?{...predicted,x:predicted.x+offset.x,y:predicted.y+offset.y,z:predicted.z+offset.z}:state?.players.find(p=>p.id===meId);const decay=Math.exp(-dt*13);for(const k of['x','y','z'])offset[k]*=decay
  view?.update(visual,me,config,dt,!state||['title','entry','modes','lobby','admin','account','settings','instructions'].includes(mode)&&previousMode!=='pause');requestAnimationFrame(loop)
 }
 setInterval(()=>{if(ws?.readyState===WebSocket.OPEN)send('ping',{sent:performance.now()})},2500)
