@@ -6,3 +6,5 @@ dist/
 outputs/
 
 firebase-debug.log*
+
+firestore-debug.log*

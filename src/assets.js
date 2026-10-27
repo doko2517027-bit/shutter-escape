@@ -1,8 +1,8 @@
 import {SURFACE_ROLES} from './appearance.js'
 export const ROLES={background:'背景画像',world:'ステージ装飾',monster:'怪物',door:'ゴール扉',lever:'レバー',brick:'床・足場',wall:'外壁・内壁',seabed:'水底の床',structure:'天井梁・柱・扉枠',pipe:'配管',lamp:'照明器具',player:'協力プレイヤー',effect:'水しぶき・波紋',water:'水面',ui:'ゲームUI',logo:'タイトルロゴ',hands:'プレイヤー手元'}
 export const DEFAULT_TRANSFORM={x:0,y:0,z:0,scale:1,rx:0,ry:0,rz:0}
-const db=()=>new Promise((resolve,reject)=>{const r=indexedDB.open('shutter-escape-assets',1);r.onupgradeneeded=()=>r.result.createObjectStore('assets');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})
-async function transact(mode,fn){const database=await db();return new Promise((resolve,reject)=>{const t=database.transaction('assets',mode),r=fn(t.objectStore('assets'));let value;r.onsuccess=()=>{value=r.result};t.oncomplete=()=>{database.close();resolve(value)};t.onerror=()=>{database.close();reject(t.error)}})}
+const db=()=>new Promise((resolve,reject)=>{const r=indexedDB.open('shutter-escape-assets',2);r.onupgradeneeded=()=>{for(const name of ['assets','shared'])if(!r.result.objectStoreNames.contains(name))r.result.createObjectStore(name)};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})
+async function transact(mode,fn,table='assets'){const database=await db();return new Promise((resolve,reject)=>{const t=database.transaction(table,mode),r=fn(t.objectStore(table));let value;r.onsuccess=()=>{value=r.result};t.oncomplete=()=>{database.close();resolve(value)};t.onerror=()=>{database.close();reject(t.error)}})}
 export const readAssets=()=>transact('readonly',store=>store.getAll()).then(rows=>Object.fromEntries(rows.map(r=>[r.role,r])))
 export const saveAsset=asset=>transact('readwrite',store=>store.put(asset,asset.role))
 export const removeAsset=role=>transact('readwrite',store=>store.delete(role))
@@ -16,3 +16,6 @@ export async function importFile(role,file){if(!ROLES[role])throw Error('差し�
 export async function exportPack(assets,config){const rows=[];for(const a of Object.values(assets)){const data=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(a.blob)});rows.push({...a,blob:undefined,data})}return new Blob([JSON.stringify({format:'shutter-pack-v1',config,assets:rows})],{type:'application/json'})}
 export async function parsePack(file){if(file.size>70*1024*1024)throw Error('素材パックが大きすぎます。');const data=JSON.parse(await file.text());if(data.format!=='shutter-pack-v1'||!Array.isArray(data.assets)||data.assets.length>Object.keys(ROLES).length)throw Error('素材パックの形式が不正です。');const assets={};for(const row of data.assets){if(!ROLES[row.role]||typeof row.data!=='string'||!row.data.startsWith('data:'))throw Error('素材パック内の項目が不正です。');const blob=await(await fetch(row.data)).blob();const asset=await importFile(row.role,new File([blob],row.name));asset.transform=safeTransform(row.transform);assets[row.role]=asset}return {assets,config:data.config||{}}}
 export function safeTransform(raw={}){const t={...DEFAULT_TRANSFORM};for(const k of Object.keys(t)){const n=Number(raw[k]);if(Number.isFinite(n))t[k]=k==='scale'?Math.max(.05,Math.min(20,n)):Math.max(-100,Math.min(100,n))}return t}
+
+export const readSharedCache=role=>transact('readonly',store=>store.get(role),'shared')
+export const saveSharedCache=asset=>transact('readwrite',store=>store.put(asset,asset.role),'shared')
