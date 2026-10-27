@@ -1,5 +1,5 @@
 export const BRAND={title:'Switch & Shutter',subtitle:'FIRST-PERSON COOPERATIVE HORROR',version:'TEST BUILD 01',instruction:'鉄のシャッターのゴールの扉から出たらクリア。'}
-export const PROTOCOL_VERSION=3,STEP=1/30,MAX_PLAYERS=4
+export const PROTOCOL_VERSION=4,STEP=1/30,MAX_PLAYERS=4
 export const DEFAULTS={speed:4.6,jump:5.6,jumpTempo:1.2,gravity:13,acceleration:26,friction:22,monsterSpeed:24,hearing:72,memory:9,elimination:'individual'}
 export const LIMITS={speed:[3,6],jump:[4.5,7],jumpTempo:[1,1.5],gravity:[10,20],acceleration:[12,45],friction:[10,40],monsterSpeed:[9,32],hearing:[20,140],memory:[3,18]}
 export function migratePreferences(raw={}){const next={...raw};if((next.balanceVersion||0)<2&&next.monsterSpeed===17)next.monsterSpeed=DEFAULTS.monsterSpeed;if((next.balanceVersion||0)<3&&next.hearing===48)next.hearing=DEFAULTS.hearing;next.balanceVersion=3;return next}
@@ -57,6 +57,7 @@ export function layoutPlatforms(seed){
   const nodes=[],scatter=attempt<8?1.5:1.1
   for(let r=0;r<ARENA.rows;r++)for(let c=0;c<ARENA.columns;c++){
    const offset=()=> (.3+random()*(scatter-.3))*(random()<.5?-1:1);const anchored=anchorCells.has(`${c},${r}`),p={id:`cell-${c}-${r}`,c,r,x:ARENA.originX+c*6+(anchored?0:offset()),z:ARENA.originZ-r*6+(anchored?0:offset()),w:(attempt<8?2.9:3.7)+random()*.7,d:(attempt<8?2.9:3.7)+random()*.7,y:.65+Math.floor(r/3)*.22}
+   const lever=LEVERS.find(l=>l.c===c&&l.r===r);if(lever)p.leverId=lever.id
    if(c===0&&r===0){p.w=7;p.d=6.6;p.id='p0'}
    const blocked=WALLS.some(w=>Math.abs(w.x-p.x)<(w.w+p.w)/2+.3&&Math.abs(w.z-p.z)<(w.d+p.d)/2+.3)
    if(!blocked)nodes.push(p)
@@ -73,7 +74,11 @@ export function layoutPlatforms(seed){
   if(failed)continue
   // Narrow nonessential landing margins while preserving every required jump edge.
   for(let round=0;round<16;round++)for(const p of selected){if(p===start||p===exit)continue;for(const axis of ['w','d']){const previous=p[axis];p[axis]=Math.max(2.5,previous-.08);if([...links.get(p)].some(n=>!jumpConnection(p,n)))p[axis]=previous}}
-  let extras=0;for(const p of filtered)if(extras<1&&!selected.has(p)&&random()<.15&&!anchorCells.has(`${p.c},${p.r}`)){p.optional=true;selected.add(p);extras++}
+  // Add reachable false trails: each has one entrance and a terminal with only water ahead.
+  const branchCandidates=parent=>filtered.filter(p=>!selected.has(p)&&!p.leverId&&p!==exit&&neighbors.get(p).filter(n=>selected.has(n)&&jumpConnection(p,n)).length===1&&(!parent?neighbors.get(p).some(n=>selected.has(n)&&!n.optional&&jumpConnection(p,n)):jumpConnection(p,parent)))
+  let branches=0
+  for(let branch=0;branch<3;branch++){let candidates=branchCandidates(null);if(!candidates.length)break;let end=candidates[Math.floor(random()*candidates.length)];end.optional=true;end.branch=branch;selected.add(end);const length=1+Math.floor(random()*3);for(let step=1;step<length;step++){candidates=branchCandidates(end);if(!candidates.length)break;const next=candidates[Math.floor(random()*candidates.length)];next.optional=true;next.branch=branch;selected.add(next);end=next}end.deadEnd=true;branches++}
+  if(branches<3)continue
   const result=[start,...[...selected].filter(p=>p!==start&&p!==exit),exit]
   if(layoutCache.size>=128)layoutCache.delete(layoutCache.keys().next().value)
   layoutCache.set(seed,result);return result

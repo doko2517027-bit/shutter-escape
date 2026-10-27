@@ -8,6 +8,7 @@ export function sanitizeInput(raw){if(!raw||!Number.isSafeInteger(raw.seq)||raw.
 export function movePlayer(p,input={},cfg,open=false,platforms=PLATFORMS){
  if(p.status!=='active')return {splash:false,step:false}
  const wasWater=p.grounded&&p.surface==='water',wasGrounded=p.grounded;const dt=STEP
+ if(wasWater)p.waterEntry=true
  p.yaw=Number.isFinite(input.yaw)?input.yaw:p.yaw;p.pitch=Number.isFinite(input.pitch)?input.pitch:p.pitch
  let r=input.right||0,f=input.forward||0,n=Math.hypot(r,f);if(n>1){r/=n;f/=n}
  const tempo=cfg.jumpTempo||1
@@ -16,33 +17,37 @@ export function movePlayer(p,input={},cfg,open=false,platforms=PLATFORMS){
  // Speed up the airborne arc, without changing walking pace or its intended reach.
  const speed=cfg.speed*(wasWater?.68:1)*(p.grounded?1:tempo),dx=(Math.cos(p.yaw)*r-Math.sin(p.yaw)*f)*speed,dz=(-Math.sin(p.yaw)*r-Math.cos(p.yaw)*f)*speed,acc=(n?cfg.acceleration:cfg.friction)*dt
  p.vx=approach(p.vx,dx,acc);p.vz=approach(p.vz,dz,acc)
+ // Walking into an ordinary brick from water climbs its edge. Lever islands have no handhold.
+ if(wasWater&&n>0){const nx=p.x+p.vx*dt,nz=p.z+p.vz*dt;const ledge=platforms.find(f=>!f.leverId&&inside(nx,nz,f,RADIUS+.08)&&!inside(p.x,p.z,f)&&((f.x-p.x)*p.vx+(f.z-p.z)*p.vz)>0);if(ledge){const x=clamp(nx,ledge.x-ledge.w/2+.09,ledge.x+ledge.w/2-.09),z=clamp(nz,ledge.z-ledge.d/2+.09,ledge.z+ledge.d/2-.09);if(!solids(open).some(b=>inside(x,z,b,RADIUS))){p.x=x;p.z=z;p.y=ledge.y;p.vy=0;p.grounded=true;p.surface='brick';p.waterEntry=false}}}
+ const restricted=f=>!!f.leverId&&p.waterEntry===true
  const previousY=p.y
  // A falling player may overlap a raised edge before their feet drop below it.
  // Resolve that shallow overlap once, so the side never traps both movement axes.
- for(const platform of platforms)if(p.y<platform.y-.12&&inside(p.x,p.z,platform,RADIUS)){
+ for(const platform of platforms)if((p.y<platform.y-.12||restricted(platform))&&inside(p.x,p.z,platform,RADIUS)){
   const ox=platform.w/2+RADIUS-Math.abs(p.x-platform.x),oz=platform.d/2+RADIUS-Math.abs(p.z-platform.z)
   if(ox<oz)p.x=platform.x+(Math.sign(p.x-platform.x)||1)*(platform.w/2+RADIUS+.001)
   else p.z=platform.z+(Math.sign(p.z-platform.z)||1)*(platform.d/2+RADIUS+.001)
  }
- const blockers=[...solids(open),...platforms.filter(platform=>p.y<platform.y-.12)]
+ const blockers=[...solids(open),...platforms.filter(platform=>p.y<platform.y-.12||restricted(platform))]
  const nx=clamp(p.x+p.vx*dt,-BOUNDS.x,BOUNDS.x)
  if(!blockers.some(b=>inside(nx,p.z,b,RADIUS)))p.x=nx;else p.vx=0
  const nz=clamp(p.z+p.vz*dt,BOUNDS.zMin,BOUNDS.zMax)
  if(!blockers.some(b=>inside(p.x,nz,b,RADIUS)))p.z=nz;else p.vz=0
  p.vy-=cfg.gravity*tempo*tempo*dt;p.y+=p.vy*dt;p.grounded=false
  let support=null
- for(const platform of platforms)if(inside(p.x,p.z,platform)&&previousY>=platform.y-.06&&p.y<=platform.y&&p.vy<=0&&(!support||platform.y>support.y))support=platform
- if(support){p.y=support.y;p.vy=0;p.grounded=true;p.surface='brick'}else if(p.y<=0){p.y=0;p.vy=0;p.grounded=true;p.surface='water'}else p.surface='air'
+ for(const platform of platforms)if(!restricted(platform)&&inside(p.x,p.z,platform)&&previousY>=platform.y-.06&&p.y<=platform.y&&p.vy<=0&&(!support||platform.y>support.y))support=platform
+ if(support){p.y=support.y;p.vy=0;p.grounded=true;p.surface='brick';p.waterEntry=false}else if(p.y<=0){p.y=0;p.vy=0;p.grounded=true;p.surface='water'}else p.surface='air'
  p.ack=input.seq||p.ack
  return {splash:p.grounded&&p.surface==='water'&&(!wasWater||!wasGrounded),step:p.grounded&&p.surface==='water'&&Math.hypot(p.vx,p.vz)>.2}
 }
+export function canUseLever(p,l,platforms=PLATFORMS){return p.grounded&&p.surface==='brick'&&Math.hypot(p.x-l.x,p.z-l.z)<2.1&&platforms.some(f=>f.leverId===l.id&&inside(p.x,p.z,f)&&Math.abs(p.y-f.y)<.08)}
 function emit(s,type,data={}){s.events.push({id:++s.eventId,type,time:s.time,...data});s.events=s.events.slice(-30)}
 export function tick(s,inputs={}){
  if(s.finished)return;const platforms=layoutPlatforms(s.layoutSeed),beforePlayers=new Map(s.players.map(p=>[p.id,{x:p.x,y:p.y,z:p.z}]));s.time+=STEP;s.tick++
  for(const p of s.players){const input=inputs[p.id]||{},motion=movePlayer(p,input,s.settings,s.open,platforms)
   if(p.status!=='active')continue
   if(motion.splash||(motion.step&&s.time-p.lastNoise>.46)){p.lastNoise=s.time;s.sounds.push({player:p.id,x:p.x,z:p.z,at:s.time});emit(s,'splash',{player:p.id,x:p.x,z:p.z,strong:motion.splash})}
-  if(input.interact){const i=LEVERS.findIndex(l=>Math.hypot(p.x-l.x,p.z-l.z)<2.1&&Math.abs(p.y-l.y)<1.6);if(i>=0&&!s.levers[i]){s.levers[i]=true;p.levers++;emit(s,'lever',{index:i,player:p.id});if(s.levers.every(Boolean)){s.open=true;emit(s,'door')}}}
+  if(input.interact){const i=LEVERS.findIndex(l=>canUseLever(p,l,platforms));if(i>=0&&!s.levers[i]){s.levers[i]=true;p.levers++;emit(s,'lever',{index:i,player:p.id});if(s.levers.every(Boolean)){s.open=true;emit(s,'door')}}}
   if(s.open&&Math.abs(p.x-EXIT.x)<EXIT.w/2-.2&&p.z<DOOR.z-2&&p.y>EXIT.y-.3){p.status='escaped';emit(s,'escape',{player:p.id})}
  }
  s.sounds=s.sounds.filter(n=>s.time-n.at<s.settings.memory)
