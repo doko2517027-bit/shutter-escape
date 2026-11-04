@@ -1,5 +1,5 @@
 export const BRAND={title:'Switch & Shutter',subtitle:'FIRST-PERSON COOPERATIVE HORROR',version:'TEST BUILD 01',instruction:'鉄のシャッターのゴールの扉から出たらクリア。'}
-export const PROTOCOL_VERSION=6,STEP=1/30,MAX_PLAYERS=4
+export const PROTOCOL_VERSION=7,STEP=1/30,MAX_PLAYERS=4,MATCH_TIME_LIMIT=60
 export const DEFAULTS={speed:4.6,jump:5.6,jumpTempo:1.2,gravity:13,acceleration:26,friction:22,monsterSpeed:24,hearing:72,memory:9,elimination:'individual'}
 export const LIMITS={speed:[3,6],jump:[4.5,7],jumpTempo:[1,1.5],gravity:[10,20],acceleration:[12,45],friction:[10,40],monsterSpeed:[9,32],hearing:[20,140],memory:[3,18]}
 export function migratePreferences(raw={}){const next={...raw};if((next.balanceVersion||0)<2&&next.monsterSpeed===17)next.monsterSpeed=DEFAULTS.monsterSpeed;if((next.balanceVersion||0)<3&&next.hearing===48)next.hearing=DEFAULTS.hearing;next.balanceVersion=3;return next}
@@ -15,6 +15,14 @@ export let PLATFORMS
 export const RADIUS=.28,EYE=1.58
 export function inside(x,z,box,pad=0){return Math.abs(x-box.x)<box.w/2+pad&&Math.abs(z-box.z)<box.d/2+pad}
 export function platformAt(x,z,platforms=PLATFORMS){return platforms.filter(p=>inside(x,z,p)).sort((a,b)=>b.y-a.y)[0]||null}
+export function isGoalPlatform(platform){return platform?.id==='exit-base'||platform?.id==='exit'||platform?.stair===true}
+const activePlatformCache=new WeakMap()
+export function activePlatforms(platforms=PLATFORMS,timedOut=false){
+ if(!timedOut)return platforms
+ let retained=activePlatformCache.get(platforms)
+ if(!retained){retained=platforms.filter(isGoalPlatform);activePlatformCache.set(platforms,retained)}
+ return retained
+}
 export function solids(open){return open?WALLS:[...WALLS,DOOR]}
 export function waterWalkable(x,z,pad=.42,platforms=PLATFORMS){return Math.abs(x)<ARENA.halfWidth-1.1&&z>-ARENA.halfDepth+1&&z<ARENA.halfDepth-1&&!platforms.some(p=>inside(x,z,p,pad))&&!WALLS.some(w=>inside(x,z,w,pad))}
 const navigationCache=new WeakMap()
