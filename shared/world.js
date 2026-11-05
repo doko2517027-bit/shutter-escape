@@ -1,12 +1,12 @@
 export const BRAND={title:'Switch & Shutter',subtitle:'FIRST-PERSON COOPERATIVE HORROR',version:'TEST BUILD 01',instruction:'鉄のシャッターのゴールの扉から出たらクリア。'}
-export const PROTOCOL_VERSION=9,STEP=1/30,MAX_PLAYERS=4,MATCH_TIME_LIMIT=210
+export const PROTOCOL_VERSION=10,STEP=1/30,MAX_PLAYERS=4,MATCH_TIME_LIMIT=210
 export const TRAP_TIMING={lead:.55,deploy:.22,hold:1.25,retract:.45,shift:4.8}
 export const DEFAULTS={speed:4.6,jump:5.6,jumpTempo:1.2,gravity:13,acceleration:26,friction:22,monsterSpeed:24,hearing:72,memory:9,elimination:'individual'}
 export const LIMITS={speed:[3,6],jump:[4.5,7],jumpTempo:[1,1.5],gravity:[10,20],acceleration:[12,45],friction:[10,40],monsterSpeed:[9,32],hearing:[20,140],memory:[3,18]}
 export function migratePreferences(raw={}){const next={...raw};if((next.balanceVersion||0)<2&&next.monsterSpeed===17)next.monsterSpeed=DEFAULTS.monsterSpeed;if((next.balanceVersion||0)<3&&next.hearing===48)next.hearing=DEFAULTS.hearing;next.balanceVersion=3;return next}
 export function settings(raw={}){const out={...DEFAULTS};for(const [key,[min,max]] of Object.entries(LIMITS)){const n=Number(raw[key]);if(Number.isFinite(n))out[key]=Math.max(min,Math.min(max,n))}if(raw.elimination==='team')out.elimination='team';return out}
 export const ARENA={width:96,depth:108,halfWidth:48,halfDepth:54,columns:15,rows:17,originX:-42,originZ:46,spacing:6}
-export const PLATFORM_HEIGHT=.82,LEVER_PLATFORM_HEIGHT=1.72
+export const PLATFORM_HEIGHT=.82,LEVER_PLATFORM_HEIGHT=1.42
 export const START={x:-42,z:46,y:PLATFORM_HEIGHT},EXIT_APPROACH={id:'exit-base',x:42,z:-38,w:5.8,d:5,y:PLATFORM_HEIGHT,c:14,r:14}
 export const EXIT={id:'exit',x:42,z:-53.5,w:5.8,d:2,y:6.15,c:14,r:16}
 export const EXIT_STAIRS=Array.from({length:24},(_,i)=>({id:'exit-step-'+i,x:42,z:-40.45-i*.496,w:4.4,d:1.4,y:PLATFORM_HEIGHT+(i+1)*.22,stair:true}))
