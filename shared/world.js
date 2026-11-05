@@ -1,5 +1,6 @@
 export const BRAND={title:'Switch & Shutter',subtitle:'FIRST-PERSON COOPERATIVE HORROR',version:'TEST BUILD 01',instruction:'鉄のシャッターのゴールの扉から出たらクリア。'}
-export const PROTOCOL_VERSION=7,STEP=1/30,MAX_PLAYERS=4,MATCH_TIME_LIMIT=60
+export const PROTOCOL_VERSION=8,STEP=1/30,MAX_PLAYERS=4,MATCH_TIME_LIMIT=150
+export const TRAP_TIMING={lead:.55,deploy:.22,hold:1.25,retract:.45,shift:4.8}
 export const DEFAULTS={speed:4.6,jump:5.6,jumpTempo:1.2,gravity:13,acceleration:26,friction:22,monsterSpeed:24,hearing:72,memory:9,elimination:'individual'}
 export const LIMITS={speed:[3,6],jump:[4.5,7],jumpTempo:[1,1.5],gravity:[10,20],acceleration:[12,45],friction:[10,40],monsterSpeed:[9,32],hearing:[20,140],memory:[3,18]}
 export function migratePreferences(raw={}){const next={...raw};if((next.balanceVersion||0)<2&&next.monsterSpeed===17)next.monsterSpeed=DEFAULTS.monsterSpeed;if((next.balanceVersion||0)<3&&next.hearing===48)next.hearing=DEFAULTS.hearing;next.balanceVersion=3;return next}
@@ -23,6 +24,16 @@ export function activePlatforms(platforms=PLATFORMS,timedOut=false){
  if(!retained){retained=platforms.filter(isGoalPlatform);activePlatformCache.set(platforms,retained)}
  return retained
 }
+function mixSeed(seed,salt){let value=(seed^(salt*0x9e3779b9))>>>0;value=Math.imul(value^(value>>>16),0x21f0aaad);value=Math.imul(value^(value>>>15),0x735a2d97);return (value^(value>>>15))>>>0}
+export function createTrapStates(seed,platforms=layoutPlatforms(seed)){
+ const candidates=platforms.filter(p=>p.id.startsWith('cell-')&&!p.leverId&&!p.optional&&!p.deadEnd&&!isGoalPlatform(p))
+ if(candidates.length<2)return []
+ const first=mixSeed(seed,1)%candidates.length;let second=mixSeed(seed,2)%candidates.length;if(second===first)second=(second+1)%candidates.length
+ return [{id:'shift-floor',kind:'shift',platformId:candidates[first].id,triggered:false,startedAt:null,dx:0,dz:0},{id:'drop-wall',kind:'wall',platformId:candidates[second].id,triggered:false,startedAt:null,axis:'x'}]
+}
+export function trapAmount(trap,time){if(!trap?.triggered||!Number.isFinite(trap.startedAt))return 0;const age=Math.max(0,time-trap.startedAt);if(age<TRAP_TIMING.deploy)return age/TRAP_TIMING.deploy;if(age<TRAP_TIMING.deploy+TRAP_TIMING.hold)return 1;if(age<TRAP_TIMING.deploy+TRAP_TIMING.hold+TRAP_TIMING.retract)return 1-(age-TRAP_TIMING.deploy-TRAP_TIMING.hold)/TRAP_TIMING.retract;return 0}
+export function runtimePlatforms(platforms=PLATFORMS,traps=[],time=0,timedOut=false){const active=activePlatforms(platforms,timedOut),shift=new Map(traps.filter(t=>t.kind==='shift'&&t.triggered).map(t=>[t.platformId,t]));if(!shift.size)return active;return active.map(p=>{const trap=shift.get(p.id);if(!trap)return p;const amount=trapAmount(trap,time);return amount?{...p,x:p.x+(trap.dx||0)*amount,z:p.z+(trap.dz||0)*amount}:p})}
+export function trapWalls(platforms=PLATFORMS,traps=[],time=0){const byId=new Map(platforms.map(p=>[p.id,p])),walls=[];for(const trap of traps){if(trap.kind!=='wall')continue;const amount=trapAmount(trap,time),platform=byId.get(trap.platformId);if(!platform||amount<.35)continue;walls.push(trap.axis==='x'?{id:'trap-wall',x:platform.x,z:platform.z,w:.42,d:platform.d+.7}:{id:'trap-wall',x:platform.x,z:platform.z,w:platform.w+.7,d:.42})}return walls}
 export function solids(open){return open?WALLS:[...WALLS,DOOR]}
 export function waterWalkable(x,z,pad=.42,platforms=PLATFORMS){return Math.abs(x)<ARENA.halfWidth-1.1&&z>-ARENA.halfDepth+1&&z<ARENA.halfDepth-1&&!platforms.some(p=>inside(x,z,p,pad))&&!WALLS.some(w=>inside(x,z,w,pad))}
 const navigationCache=new WeakMap()
