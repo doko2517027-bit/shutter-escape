@@ -1,6 +1,6 @@
 import {RADIUS,inside} from './world.js'
 // Match the standard monster's outstretched arms; uploaded art never changes physics.
-export const MONSTER_RADIUS=.78,MONSTER_HEIGHT=2.4,PLAYER_HEIGHT=1.75
+export const MONSTER_RADIUS=1.12,MONSTER_HEIGHT=2.4,PLAYER_HEIGHT=1.75
 const lerp=(a,b,t)=>a+(b-a)*t
 function crossesBox(a,b,box){let lo=0,hi=1;for(const [key,size] of [['x','w'],['z','d']]){const d=b[key]-a[key],min=box[key]-box[size]/2,max=box[key]+box[size]/2;if(Math.abs(d)<1e-9){if(a[key]<min||a[key]>max)return false;continue}let first=(min-a[key])/d,last=(max-a[key])/d;if(first>last)[first,last]=[last,first];lo=Math.max(lo,first);hi=Math.min(hi,last);if(lo>hi)return false}return true}
 export function monsterContact(playerBefore,playerAfter,monsterBefore,monsterAfter,platforms,walls){

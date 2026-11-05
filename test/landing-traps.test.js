@@ -3,8 +3,8 @@ import assert from 'node:assert/strict'
 import {createMatch,createPlayer,tick} from '../shared/engine.js'
 import {MATCH_TIME_LIMIT,TRAP_TIMING,createTrapStates,isGoalPlatform,layoutPlatforms,runtimePlatforms,trapAmount,trapWalls} from '../shared/world.js'
 
-test('match lasts 2 minutes 30 seconds',()=>{
- assert.equal(MATCH_TIME_LIMIT,150)
+test('match lasts 3 minutes 30 seconds',()=>{
+ assert.equal(MATCH_TIME_LIMIT,210)
 })
 
 test('each layout deterministically selects one moving floor and one falling wall',()=>{

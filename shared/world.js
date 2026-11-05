@@ -1,15 +1,16 @@
 export const BRAND={title:'Switch & Shutter',subtitle:'FIRST-PERSON COOPERATIVE HORROR',version:'TEST BUILD 01',instruction:'鉄のシャッターのゴールの扉から出たらクリア。'}
-export const PROTOCOL_VERSION=8,STEP=1/30,MAX_PLAYERS=4,MATCH_TIME_LIMIT=150
+export const PROTOCOL_VERSION=9,STEP=1/30,MAX_PLAYERS=4,MATCH_TIME_LIMIT=210
 export const TRAP_TIMING={lead:.55,deploy:.22,hold:1.25,retract:.45,shift:4.8}
 export const DEFAULTS={speed:4.6,jump:5.6,jumpTempo:1.2,gravity:13,acceleration:26,friction:22,monsterSpeed:24,hearing:72,memory:9,elimination:'individual'}
 export const LIMITS={speed:[3,6],jump:[4.5,7],jumpTempo:[1,1.5],gravity:[10,20],acceleration:[12,45],friction:[10,40],monsterSpeed:[9,32],hearing:[20,140],memory:[3,18]}
 export function migratePreferences(raw={}){const next={...raw};if((next.balanceVersion||0)<2&&next.monsterSpeed===17)next.monsterSpeed=DEFAULTS.monsterSpeed;if((next.balanceVersion||0)<3&&next.hearing===48)next.hearing=DEFAULTS.hearing;next.balanceVersion=3;return next}
 export function settings(raw={}){const out={...DEFAULTS};for(const [key,[min,max]] of Object.entries(LIMITS)){const n=Number(raw[key]);if(Number.isFinite(n))out[key]=Math.max(min,Math.min(max,n))}if(raw.elimination==='team')out.elimination='team';return out}
 export const ARENA={width:96,depth:108,halfWidth:48,halfDepth:54,columns:15,rows:17,originX:-42,originZ:46,spacing:6}
-export const START={x:-42,z:46,y:.65},EXIT_APPROACH={id:'exit-base',x:42,z:-38,w:5.8,d:5,y:1.75,c:14,r:14}
+export const PLATFORM_HEIGHT=.82,LEVER_PLATFORM_HEIGHT=1.72
+export const START={x:-42,z:46,y:PLATFORM_HEIGHT},EXIT_APPROACH={id:'exit-base',x:42,z:-38,w:5.8,d:5,y:PLATFORM_HEIGHT,c:14,r:14}
 export const EXIT={id:'exit',x:42,z:-53.5,w:5.8,d:2,y:6.15,c:14,r:16}
-export const EXIT_STAIRS=Array.from({length:20},(_,i)=>({id:'exit-step-'+i,x:42,z:-41.2-i*.55,w:4.4,d:1.4,y:1.97+i*.22,stair:true}))
-export const LEVERS=[{id:'L1',c:12,r:2},{id:'L2',c:2,r:5},{id:'L3',c:11,r:8},{id:'L4',c:1,r:12},{id:'L5',c:10,r:15}].map(l=>({...l,x:ARENA.originX+l.c*6,z:ARENA.originZ-l.r*6,y:.65+Math.floor(l.r/3)*.22}))
+export const EXIT_STAIRS=Array.from({length:24},(_,i)=>({id:'exit-step-'+i,x:42,z:-40.45-i*.496,w:4.4,d:1.4,y:PLATFORM_HEIGHT+(i+1)*.22,stair:true}))
+export const LEVERS=[{id:'L1',c:12,r:2},{id:'L2',c:2,r:5},{id:'L3',c:11,r:8},{id:'L4',c:1,r:12},{id:'L5',c:10,r:15}].map(l=>({...l,x:ARENA.originX+l.c*6,z:ARENA.originZ-l.r*6,y:LEVER_PLATFORM_HEIGHT}))
 export const WALLS=[{x:-48,z:0,w:.8,d:108},{x:48,z:0,w:.8,d:108},{x:0,z:54,w:96,d:.8},{x:-4.5,z:-54,w:87,d:.8},{x:46.5,z:-54,w:3,d:.8},{x:38.6,z:-50,w:.7,d:8},{x:45.4,z:-50,w:.7,d:8},{x:-17,z:28,w:.8,d:15},{x:13,z:12,w:.8,d:17},{x:-5,z:-8,w:.8,d:15},{x:19,z:-27,w:.8,d:15},{x:-17,z:-38,w:.8,d:13}]
 export const DOOR={x:42,z:-51.8,w:6,d:.5},BOUNDS={x:47.3,zMin:-54.5,zMax:53.3}
 export let PLATFORMS
@@ -64,8 +65,9 @@ export function navigationSegment(from,to,platforms=PLATFORMS,avoid=null){const 
 const layoutCache=new Map()
 export function platformGap(a,b){const distance=Math.hypot(b.x-a.x,b.z-a.z);if(!distance)return 0;const ux=Math.abs(b.x-a.x)/distance,uz=Math.abs(b.z-a.z)/distance;const edge=p=>Math.min(ux>.0001?p.w/2/ux:Infinity,uz>.0001?p.d/2/uz:Infinity);return distance-edge(a)-edge(b)}
 export function jumpConnection(a,b){
- if(a===b||Math.hypot(a.x-b.x,a.z-b.z)>(a.id.startsWith('exit')||b.id.startsWith('exit')?16:8.5)||Math.abs(a.y-b.y)>.23)return false
- if(platformGap(a,b)>(Math.abs(a.y-b.y)>.05?2.95:3.15))return false
+ const height=Math.abs(a.y-b.y),heightLimit=a.leverId||b.leverId?1.05:.23
+ if(a===b||Math.hypot(a.x-b.x,a.z-b.z)>(a.id.startsWith('exit')||b.id.startsWith('exit')?16:8.5)||height>heightLimit)return false
+ if(platformGap(a,b)>((a.leverId||b.leverId)?2.25:2.9))return false
  return !WALLS.some(w=>{for(let i=0;i<=32;i++)if(inside(a.x+(b.x-a.x)*i/32,a.z+(b.z-a.z)*i/32,w,RADIUS+.04))return true;return false})
 }
 export function layoutPlatforms(seed){
@@ -77,8 +79,8 @@ export function layoutPlatforms(seed){
  for(let attempt=0;attempt<256;attempt++){
   const nodes=[],scatter=attempt<8?1.5:1.1
   for(let r=0;r<ARENA.rows;r++)for(let c=0;c<ARENA.columns;c++){
-   const offset=()=> (.3+random()*(scatter-.3))*(random()<.5?-1:1);const anchored=anchorCells.has(`${c},${r}`),p={id:`cell-${c}-${r}`,c,r,x:ARENA.originX+c*6+(anchored?0:offset()),z:ARENA.originZ-r*6+(anchored?0:offset()),w:(attempt<8?2.9:3.7)+random()*.7,d:(attempt<8?2.9:3.7)+random()*.7,y:.65+Math.floor(r/3)*.22}
-   const lever=LEVERS.find(l=>l.c===c&&l.r===r);if(lever)p.leverId=lever.id
+   const offset=()=> (.3+random()*(scatter-.3))*(random()<.5?-1:1);const anchored=anchorCells.has(`${c},${r}`),lever=LEVERS.find(l=>l.c===c&&l.r===r),p={id:`cell-${c}-${r}`,c,r,x:ARENA.originX+c*6+(anchored?0:offset()),z:ARENA.originZ-r*6+(anchored?0:offset()),w:(attempt<8?2.9:3.7)+random()*.7,d:(attempt<8?2.9:3.7)+random()*.7,y:lever?LEVER_PLATFORM_HEIGHT:PLATFORM_HEIGHT}
+   if(lever)p.leverId=lever.id
    if(c===0&&r===0){p.w=7;p.d=6.6;p.id='p0'}
    const blocked=[...WALLS,...EXIT_STAIRS,EXIT].some(w=>Math.abs(w.x-p.x)<(w.w+p.w)/2+.3&&Math.abs(w.z-p.z)<(w.d+p.d)/2+.3)
    if(!blocked)nodes.push(p)

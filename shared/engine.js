@@ -3,7 +3,7 @@ import {monsterContact} from './contact.js'
 import {STEP,MATCH_TIME_LIMIT,TRAP_TIMING,ARENA,START,EXIT,PLATFORMS,layoutPlatforms,runtimePlatforms,trapWalls,createTrapStates,LEVERS,DOOR,BOUNDS,RADIUS,inside,solids,WALLS,navigationPath,waterWalkable,settings} from './world.js'
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n)),approach=(a,b,d)=>a<b?Math.min(b,a+d):Math.max(b,a-d)
 export function createPlayer(id,name='探索者',i=0){return {id,name:String(name).slice(0,16),x:START.x-1+(i%2)*1.2,z:START.z+Math.floor(i/2)*1.1,y:START.y,vx:0,vz:0,vy:0,yaw:0,pitch:0,grounded:true,surface:'brick',status:'active',ack:0,coyote:.1,jumpBuffer:0,lastNoise:-99,levers:0,connected:true}}
-export function createMatch(players,raw={},layoutSeed=globalThis.crypto.getRandomValues(new Uint32Array(1))[0]){return {layoutSeed,time:0,tick:0,timedOut:false,collapseAt:null,settings:settings(raw),players:structuredClone(players),levers:LEVERS.map(()=>false),traps:createTrapStates(layoutSeed),open:false,finished:false,events:[],monsters:players.map((p,i)=>({id:'m'+i,x:-ARENA.halfWidth+1.6,z:[22,0,-22,35][i],target:null,heard:null,path:[],repath:0,patrol:0,alert:false})),sounds:[],eventId:0}}
+export function createMatch(players,raw={},layoutSeed=globalThis.crypto.getRandomValues(new Uint32Array(1))[0]){return {layoutSeed,time:0,tick:0,timedOut:false,collapseAt:null,settings:settings(raw),players:structuredClone(players),levers:LEVERS.map(()=>false),traps:createTrapStates(layoutSeed),open:false,finished:false,events:[],monsters:players.map((p,i)=>({id:'m'+i,x:-ARENA.halfWidth+1.6,z:[22,0,-22,35][i],target:null,heard:null,path:[],repath:0,patrol:0,alert:false,heading:0,lookYaw:0})),sounds:[],eventId:0}}
 export function sanitizeInput(raw){if(!raw||!Number.isSafeInteger(raw.seq)||raw.seq<1||raw.seq>1e9)return null;for(const k of['right','forward','yaw','pitch'])if(!Number.isFinite(raw[k]))return null;return {seq:raw.seq,right:clamp(raw.right,-1,1),forward:clamp(raw.forward,-1,1),yaw:((raw.yaw%(Math.PI*2))+Math.PI*2)%(Math.PI*2),pitch:clamp(raw.pitch,-1.35,1.35),jump:raw.jump===true,interact:raw.interact===true}}
 export function movePlayer(p,input={},cfg,open=false,platforms=PLATFORMS,extraSolids=[]){
  if(p.status!=='active')return {splash:false,step:false}
@@ -65,7 +65,7 @@ export function tick(s,inputs={}){
   if(prepareMonster(s,monster,platforms,assigned))emit(s,'alert',{monster:monster.id})
   monster.nextCry??=7+Number(monster.id.slice(1))*3.7;if(s.time>=monster.nextCry){monster.nextCry=s.time+7+((Math.sin(s.tick*12.9898+(s.layoutSeed||0))*43758.5453)%1+1)%1*16;emit(s,'monsterCry',{monster:monster.id})}
   const totalTravel=(monster.alert?s.settings.monsterSpeed:MONSTER_BEHAVIOR.patrolSpeed)*STEP,trail=[{x:monster.x,z:monster.z,t:0}];let travel=totalTravel
-  while(travel>0&&monster.path.length){const next=monster.path[0],d=Math.hypot(next.x-monster.x,next.z-monster.z);if(d<.03){monster.path.shift();continue}const step=Math.min(travel,d),x=monster.x+(next.x-monster.x)/d*step,z=monster.z+(next.z-monster.z)/d*step;if(waterWalkable(x,z,.38,platforms)){monster.x=x;monster.z=z}else{monster.path=[];monster.repath=0;break}travel-=step;trail.push({x:monster.x,z:monster.z,t:1-travel/totalTravel});if(step>=d)monster.path.shift()}
+  while(travel>0&&monster.path.length){const next=monster.path[0],d=Math.hypot(next.x-monster.x,next.z-monster.z);if(d<.03){monster.path.shift();continue}const step=Math.min(travel,d),x=monster.x+(next.x-monster.x)/d*step,z=monster.z+(next.z-monster.z)/d*step;if(waterWalkable(x,z,.38,platforms)){monster.heading=Math.atan2(x-monster.x,z-monster.z);monster.lookYaw=monster.heading;monster.x=x;monster.z=z}else{monster.path=[];monster.repath=0;break}travel-=step;trail.push({x:monster.x,z:monster.z,t:1-travel/totalTravel});if(step>=d)monster.path.shift()}
   trail.push({x:monster.x,z:monster.z,t:1})
   for(const p of s.players){if(p.status!=='active')continue;const before=beforePlayers.get(p.id);let caught=false
    for(let i=1;i<trail.length&&!caught;i++){const a=trail[i-1],b=trail[i],at=t=>({x:before.x+(p.x-before.x)*t,y:before.y+(p.y-before.y)*t,z:before.z+(p.z-before.z)*t});caught=monsterContact(at(a.t),at(b.t),a,b,platforms,[...solids(s.open),...extraSolids])}
@@ -74,4 +74,4 @@ export function tick(s,inputs={}){
  }
  s.finished=s.players.every(p=>p.status!=='active')
 }
-export function snapshot(s){return {...s,monsters:s.monsters.map(m=>({id:m.id,x:m.x,z:m.z,target:m.target,alert:m.alert,mode:m.mode})),sounds:undefined}}
+export function snapshot(s){return {...s,monsters:s.monsters.map(m=>({id:m.id,x:m.x,z:m.z,target:m.target,alert:m.alert,mode:m.mode,lookYaw:m.lookYaw,heading:m.heading})),sounds:undefined}}
