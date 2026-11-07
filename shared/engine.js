@@ -3,7 +3,7 @@ import {monsterContact} from './contact.js'
 import {STEP,MATCH_TIME_LIMIT,TRAP_TIMING,ARENA,START,EXIT,PLATFORMS,layoutPlatforms,runtimePlatforms,trapWalls,createTrapStates,LEVERS,DOOR,BOUNDS,RADIUS,inside,solids,WALLS,navigationPath,waterWalkable,settings} from './world.js'
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n)),approach=(a,b,d)=>a<b?Math.min(b,a+d):Math.max(b,a-d)
 export function createPlayer(id,name='探索者',i=0){return {id,name:String(name).slice(0,16),x:START.x-1+(i%2)*1.2,z:START.z+Math.floor(i/2)*1.1,y:START.y,vx:0,vz:0,vy:0,yaw:0,pitch:0,grounded:true,surface:'brick',status:'active',ack:0,coyote:.1,jumpBuffer:0,lastNoise:-99,levers:0,connected:true}}
-export function createMatch(players,raw={},layoutSeed=globalThis.crypto.getRandomValues(new Uint32Array(1))[0]){return {layoutSeed,time:0,tick:0,timedOut:false,collapseAt:null,settings:settings(raw),players:structuredClone(players),levers:LEVERS.map(()=>false),traps:createTrapStates(layoutSeed),open:false,finished:false,events:[],monsters:players.map((p,i)=>({id:'m'+i,x:-ARENA.halfWidth+1.6,z:[22,0,-22,35][i],target:null,heard:null,path:[],repath:0,patrol:0,alert:false,heading:0,lookYaw:0})),sounds:[],eventId:0}}
+export function createMatch(players,raw={},layoutSeed=globalThis.crypto.getRandomValues(new Uint32Array(1))[0],monsterControllers=[]){const count=Math.max(1,players.length+monsterControllers.length);return {layoutSeed,time:0,tick:0,timedOut:false,collapseAt:null,settings:settings(raw),players:structuredClone(players),levers:LEVERS.map(()=>false),traps:createTrapStates(layoutSeed),open:false,finished:false,events:[],monsters:Array.from({length:count},(_,i)=>({id:'m'+i,kind:'monster',controllerId:monsterControllers[i]||null,x:-ARENA.halfWidth+1.6,z:[22,0,-22,35][i],y:0,vx:0,vz:0,yaw:0,pitch:0,ack:0,status:'active',connected:true,target:null,heard:null,path:[],repath:0,patrol:0,alert:false,heading:0,lookYaw:0})),sounds:[],eventId:0}}
 export function sanitizeInput(raw){if(!raw||!Number.isSafeInteger(raw.seq)||raw.seq<1||raw.seq>1e9)return null;for(const k of['right','forward','yaw','pitch'])if(!Number.isFinite(raw[k]))return null;return {seq:raw.seq,right:clamp(raw.right,-1,1),forward:clamp(raw.forward,-1,1),yaw:((raw.yaw%(Math.PI*2))+Math.PI*2)%(Math.PI*2),pitch:clamp(raw.pitch,-1.35,1.35),jump:raw.jump===true,interact:raw.interact===true}}
 export function movePlayer(p,input={},cfg,open=false,platforms=PLATFORMS,extraSolids=[]){
  if(p.status!=='active')return {splash:false,step:false}
@@ -41,6 +41,17 @@ export function movePlayer(p,input={},cfg,open=false,platforms=PLATFORMS,extraSo
  p.ack=input.seq||p.ack
  return {land:p.grounded&&p.surface==='brick'&&!wasGrounded,brickStep:p.grounded&&p.surface==='brick'&&Math.hypot(p.vx,p.vz)>.2,splash:p.grounded&&p.surface==='water'&&(!wasWater||!wasGrounded),step:p.grounded&&p.surface==='water'&&Math.hypot(p.vx,p.vz)>.2}
 }
+export function moveControlledMonster(m,input={},cfg,platforms=PLATFORMS){
+ if(m.status!=='active')return
+ m.yaw=Number.isFinite(input.yaw)?input.yaw:m.yaw;m.pitch=Number.isFinite(input.pitch)?input.pitch:m.pitch
+ let r=input.right||0,f=input.forward||0,n=Math.hypot(r,f);if(n>1){r/=n;f/=n}
+ const speed=Math.max(5,Math.min(14,cfg.monsterSpeed*.55)),dx=(Math.cos(m.yaw)*r-Math.sin(m.yaw)*f)*speed,dz=(-Math.sin(m.yaw)*r-Math.cos(m.yaw)*f)*speed,acc=(n?30:24)*STEP
+ m.vx=approach(m.vx||0,dx,acc);m.vz=approach(m.vz||0,dz,acc)
+ const nx=m.x+m.vx*STEP;if(waterWalkable(nx,m.z,.38,platforms))m.x=nx;else m.vx=0
+ const nz=m.z+m.vz*STEP;if(waterWalkable(m.x,nz,.38,platforms))m.z=nz;else m.vz=0
+ if(Math.hypot(m.vx,m.vz)>.05)m.heading=Math.atan2(m.vx,m.vz)
+ m.lookYaw=m.yaw;m.alert=Math.hypot(m.vx,m.vz)>.2;m.mode='controlled';m.ack=input.seq||m.ack
+}
 export function canUseLever(p,l,platforms=PLATFORMS){return p.grounded&&p.surface==='brick'&&Math.hypot(p.x-l.x,p.z-l.z)<2.1&&platforms.some(f=>f.leverId===l.id&&inside(p.x,p.z,f)&&Math.abs(p.y-f.y)<.08)}
 function emit(s,type,data={}){s.events.push({id:++s.eventId,type,time:s.time,...data});s.events=s.events.slice(-30)}
 function landingTime(p,platform,cfg){if(p.grounded||p.surface!=='air'||p.y<=platform.y+.08)return Infinity;const gravity=cfg.gravity*(cfg.jumpTempo||1)**2,dy=p.y-platform.y,root=p.vy*p.vy+2*gravity*dy;if(root<0)return Infinity;return (p.vy+Math.sqrt(root))/gravity}
@@ -62,9 +73,11 @@ export function tick(s,inputs={}){
  s.sounds=s.sounds.filter(n=>s.time-n.at<s.settings.memory)
  const assigned=new Map()
  for(const monster of s.monsters){
-  if(prepareMonster(s,monster,platforms,assigned))emit(s,'alert',{monster:monster.id})
+  const monsterStart={x:monster.x,z:monster.z,t:0},controlled=!!monster.controllerId
+  if(controlled)moveControlledMonster(monster,inputs[monster.controllerId]||{},s.settings,platforms)
+  else if(prepareMonster(s,monster,platforms,assigned))emit(s,'alert',{monster:monster.id})
   monster.nextCry??=7+Number(monster.id.slice(1))*3.7;if(s.time>=monster.nextCry){monster.nextCry=s.time+7+((Math.sin(s.tick*12.9898+(s.layoutSeed||0))*43758.5453)%1+1)%1*16;emit(s,'monsterCry',{monster:monster.id})}
-  const totalTravel=(monster.alert?s.settings.monsterSpeed:MONSTER_BEHAVIOR.patrolSpeed)*STEP,trail=[{x:monster.x,z:monster.z,t:0}];let travel=totalTravel
+  const totalTravel=(monster.alert?s.settings.monsterSpeed:MONSTER_BEHAVIOR.patrolSpeed)*STEP,trail=[monsterStart];let travel=controlled?0:totalTravel
   while(travel>0&&monster.path.length){const next=monster.path[0],d=Math.hypot(next.x-monster.x,next.z-monster.z);if(d<.03){monster.path.shift();continue}const step=Math.min(travel,d),x=monster.x+(next.x-monster.x)/d*step,z=monster.z+(next.z-monster.z)/d*step;if(waterWalkable(x,z,.38,platforms)){monster.heading=Math.atan2(x-monster.x,z-monster.z);monster.lookYaw=monster.heading;monster.x=x;monster.z=z}else{monster.path=[];monster.repath=0;break}travel-=step;trail.push({x:monster.x,z:monster.z,t:1-travel/totalTravel});if(step>=d)monster.path.shift()}
   trail.push({x:monster.x,z:monster.z,t:1})
   for(const p of s.players){if(p.status!=='active')continue;const before=beforePlayers.get(p.id);let caught=false
@@ -74,4 +87,7 @@ export function tick(s,inputs={}){
  }
  s.finished=s.players.every(p=>p.status!=='active')
 }
-export function snapshot(s){return {...s,monsters:s.monsters.map(m=>({id:m.id,x:m.x,z:m.z,target:m.target,alert:m.alert,mode:m.mode,lookYaw:m.lookYaw,heading:m.heading})),sounds:undefined}}
+export function snapshot(s,viewer=null){
+ const monsterView=viewer?.role==='monster',players=(monsterView?s.players.filter(p=>p.status==='active'&&p.grounded&&p.surface==='water'):s.players).map(p=>({...p})),allowed=monsterView?new Set(['splash','timeout','trap','door','monsterCry','alert','caught']):null
+ return {...s,players,monsters:s.monsters.map(m=>({id:m.id,kind:'monster',controllerId:m.controllerId||null,x:m.x,y:0,z:m.z,vx:m.vx||0,vz:m.vz||0,yaw:m.yaw||m.lookYaw||0,pitch:m.pitch||0,ack:m.ack||0,status:m.status||'active',connected:m.connected!==false,target:monsterView?null:m.target,alert:m.alert,mode:m.mode,lookYaw:m.lookYaw,heading:m.heading})),events:allowed?s.events.filter(e=>allowed.has(e.type)):s.events,summary:{active:s.players.filter(p=>p.status==='active').length,escaped:s.players.filter(p=>p.status==='escaped').length,dead:s.players.filter(p=>p.status==='dead').length,total:s.players.length},viewer:viewer?{id:viewer.id,role:viewer.role}:null,sounds:undefined}
+}
