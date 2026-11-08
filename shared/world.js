@@ -1,5 +1,5 @@
 export const BRAND={title:'Switch & Shutter',subtitle:'FIRST-PERSON COOPERATIVE HORROR',version:'TEST BUILD 01',instruction:'鉄のシャッターのゴールの扉から出たらクリア。'}
-export const PROTOCOL_VERSION=12,STEP=1/30,MAX_PLAYERS=4,MATCH_TIME_LIMIT=210
+export const PROTOCOL_VERSION=13,STEP=1/30,MAX_PLAYERS=4,MATCH_TIME_LIMIT=210
 export const TRAP_TIMING={lead:.55,deploy:.22,hold:1.25,retract:.45,shift:4.8}
 export const DEFAULTS={speed:4.6,jump:5.6,jumpTempo:1.2,gravity:13,acceleration:26,friction:22,monsterSpeed:24,hearing:72,memory:9,elimination:'individual'}
 export const LIMITS={speed:[3,6],jump:[4.5,7],jumpTempo:[1,1.5],gravity:[10,20],acceleration:[12,45],friction:[10,40],monsterSpeed:[9,32],hearing:[20,140],memory:[3,18]}
