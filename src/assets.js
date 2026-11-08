@@ -1,6 +1,6 @@
 import {SOUND_ROLES,isSound,AUDIO_MIMES,validateAudio} from './audio-config.js'
 import {SURFACE_ROLES} from './appearance.js'
-export const ROLES={background:'背景画像',world:'ステージ装飾',monster:'怪物',door:'ゴール扉',lever:'レバー',brick:'床・足場',wall:'外壁・内壁',seabed:'水底の床',structure:'天井梁・柱・扉枠',pipe:'配管',lamp:'照明器具',player:'協力プレイヤー',effect:'水しぶき・波紋',water:'水面',ui:'ゲームUI',logo:'タイトルロゴ',hands:'プレイヤー手元',...SOUND_ROLES}
+export const ROLES={monster2:'ステージ2：怪物（見つめる者）',wall2:'ステージ2：迷路の壁',brick2:'ステージ2：床',lever2:'ステージ2：レバー',door2:'ステージ2：シャッター',background2:'ステージ2：背景',world2:'ステージ2：装飾',background:'背景画像',world:'ステージ装飾',monster:'怪物',door:'ゴール扉',lever:'レバー',brick:'床・足場',wall:'外壁・内壁',seabed:'水底の床',structure:'天井梁・柱・扉枠',pipe:'配管',lamp:'照明器具',player:'協力プレイヤー',effect:'水しぶき・波紋',water:'水面',ui:'ゲームUI',logo:'タイトルロゴ',hands:'プレイヤー手元',...SOUND_ROLES}
 export const DEFAULT_TRANSFORM={x:0,y:0,z:0,scale:1,rx:0,ry:0,rz:0}
 const db=()=>new Promise((resolve,reject)=>{const r=indexedDB.open('shutter-escape-assets',2);r.onupgradeneeded=()=>{for(const name of ['assets','shared'])if(!r.result.objectStoreNames.contains(name))r.result.createObjectStore(name)};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})
 async function transact(mode,fn,table='assets'){const database=await db();return new Promise((resolve,reject)=>{const t=database.transaction(table,mode),r=fn(t.objectStore(table));let value;r.onsuccess=()=>{value=r.result};t.oncomplete=()=>{database.close();resolve(value)};t.onerror=()=>{database.close();reject(t.error)}})}

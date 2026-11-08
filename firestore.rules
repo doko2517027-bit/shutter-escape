@@ -2,7 +2,7 @@ rules_version = '2';
 service cloud.firestore {
  match /databases/{database}/documents {
   function admin() { return request.auth != null && request.auth.token.email_verified == true && request.auth.uid == get(/databases/$(database)/documents/internal/assetAdmin).data.uid; }
-  function role(r) { return r in ['background','world','monster','door','lever','brick','wall','seabed','structure','pipe','lamp','player','effect','water','ui','logo','hands','sound_player_splash','sound_player_water','sound_player_brick','sound_player_land','sound_monster_walk','sound_monster_run','sound_monster_cry','sound_monster_attack','sound_ambient_drip','sound_ambient_hollow','sound_lever','sound_door']; }
+  function role(r) { return r in ['monster2','wall2','brick2','lever2','door2','background2','world2','background','world','monster','door','lever','brick','wall','seabed','structure','pipe','lamp','player','effect','water','ui','logo','hands','sound_player_splash','sound_player_water','sound_player_brick','sound_player_land','sound_monster_walk','sound_monster_run','sound_monster_cry','sound_monster_attack','sound_ambient_drip','sound_ambient_hollow','sound_lever','sound_door']; }
   function published(id, r) { let p = get(/databases/$(database)/documents/sharedAssets/$(r)).data; return p.uploadId == id || p.previous == id; }
   match /internal/{id} { allow read, write: if false; }
   match /sharedAssets/{r} {

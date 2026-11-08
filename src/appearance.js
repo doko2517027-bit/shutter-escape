@@ -1,4 +1,4 @@
-export const SURFACE_ROLES=['brick','wall','seabed','structure','pipe','lamp','water','effect','background','ui','logo']
+export const SURFACE_ROLES=['wall2','brick2','background2','brick','wall','seabed','structure','pipe','lamp','water','effect','background','ui','logo']
 export const DEFAULT_LOOK={useColor:false,color:'#ffffff',roughness:1,metalness:0,opacity:1,emissive:0,repeatX:1,repeatY:1}
 export const DEFAULT_ENVIRONMENT={fogColor:'#091315',fogDensity:.039,exposure:1.35,light:1,torch:1,waterSpeed:1}
 const number=(v,min,max,fallback)=>Number.isFinite(Number(v))?Math.max(min,Math.min(max,Number(v))):fallback

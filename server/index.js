@@ -17,7 +17,7 @@ export function createGameServer(options={}){
  const send=(ws,data)=>{if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify(data))},broadcast=(r,data)=>{const encoded=JSON.stringify(data);for(const m of r.members.values())if(m.ws?.readyState===WebSocket.OPEN)m.ws.send(encoded)},roleOf=role=>role==='monster'?'monster':'player'
  const lobby=r=>({type:'lobby',code:r.code,host:r.host,settings:r.settings,members:[...r.members.values()].map(m=>({id:m.id,name:m.name,role:m.role,ready:m.ready,connected:!!m.ws})),running:!!r.match})
  const sendMatch=(r,type='state')=>{for(const m of r.members.values())if(m.ws?.readyState===WebSocket.OPEN&&(type!=='state'||m.ws.bufferedAmount<16384))send(m.ws,{type,state:snapshot(r.match,{id:m.id,role:m.role}),serverTime:Date.now()})}
- const start=r=>{const members=[...r.members.values()],explorers=members.filter(m=>m.role!=='monster'),controllers=members.filter(m=>m.role==='monster').map(m=>m.id);if(!explorers.length)throw Error('NEED_EXPLORER');r.match=createMatch(explorers.map((m,i)=>createPlayer(m.id,m.name,i)),r.settings,undefined,controllers);for(const m of members){m.queue=[];m.enqueued=0;m.inputStarted=false;m.ready=false}sendMatch(r,'start');r.updated=Date.now()}
+ const start=(r,stage=r.match?.stage||1)=>{const members=[...r.members.values()],explorers=members.filter(m=>m.role!=='monster'),controllers=members.filter(m=>m.role==='monster').map(m=>m.id);if(!explorers.length)throw Error('NEED_EXPLORER');r.match=createMatch(explorers.map((m,i)=>createPlayer(m.id,m.name,i)),r.settings,undefined,controllers,stage);for(const m of members){m.queue=[];m.enqueued=0;m.inputStarted=false;m.ready=false}sendMatch(r,'start');r.updated=Date.now()}
  wss.on('connection',(ws,req)=>{
   const origin=req.headers.origin,allowed=(process.env.ALLOWED_ORIGINS||'').split(',').filter(Boolean)
   if(origin&&allowed.length&&!allowed.includes(origin)){ws.close(1008,'origin');return}
@@ -45,6 +45,7 @@ export function createGameServer(options={}){
    else if(d.type==='role'){if(room.match)throw Error('ALREADY_STARTED');member.role=roleOf(d.role);member.ready=false;broadcast(room,lobby(room))}
    else if(d.type==='settings'){if(member.id!==room.host||room.match)throw Error('HOST_ONLY');room.settings=settings(d.settings);broadcast(room,lobby(room))}
    else if(d.type==='start'){if(member.id!==room.host)throw Error('HOST_ONLY');if(room.match||[...room.members.values()].some(m=>!m.ready||!m.ws))throw Error('NOT_READY');start(room)}
+   else if(d.type==='next-stage'){if(member.id!==room.host)throw Error('HOST_ONLY');if(!room.match||room.match.stage===2||!room.match.finished||!(room.match.players.some(p=>p.status==='escaped')||room.match.monsters.some(m=>m.controllerId)&&room.match.players.some(p=>p.status==='dead')))throw Error('STAGE_LOCKED');if([...room.members.values()].some(m=>!m.ws))throw Error('NOT_CONNECTED');start(room,2)}
    else if(d.type==='restart'){if(member.id!==room.host)throw Error('HOST_ONLY');if([...room.members.values()].some(m=>!m.ws))throw Error('NOT_CONNECTED');start(room)}
    else if(d.type==='input'){
     if(!room.match||room.match.finished)return;if(!Array.isArray(d.commands)||d.commands.length>8)throw Error('INVALID_INPUT')
