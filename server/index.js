@@ -17,7 +17,7 @@ export function createGameServer(options={}){
  const send=(ws,data)=>{if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify(data))},broadcast=(r,data)=>{const encoded=JSON.stringify(data);for(const m of r.members.values())if(m.ws?.readyState===WebSocket.OPEN)m.ws.send(encoded)},roleOf=role=>role==='monster'?'monster':'player'
  const lobby=r=>({type:'lobby',code:r.code,host:r.host,settings:r.settings,members:[...r.members.values()].map(m=>({id:m.id,name:m.name,role:m.role,ready:m.ready,connected:!!m.ws})),running:!!r.match})
  const sendMatch=(r,type='state')=>{for(const m of r.members.values())if(m.ws?.readyState===WebSocket.OPEN&&(type!=='state'||m.ws.bufferedAmount<16384))send(m.ws,{type,state:snapshot(r.match,{id:m.id,role:m.role}),serverTime:Date.now()})}
- const start=(r,stage=r.match?.stage||1)=>{const members=[...r.members.values()],explorers=members.filter(m=>m.role!=='monster'),controllers=members.filter(m=>m.role==='monster').map(m=>m.id);if(!explorers.length)throw Error('NEED_EXPLORER');r.match=createMatch(explorers.map((m,i)=>createPlayer(m.id,m.name,i)),r.settings,undefined,controllers,stage);for(const m of members){m.queue=[];m.enqueued=0;m.inputStarted=false;m.ready=false}sendMatch(r,'start');r.updated=Date.now()}
+ const start=(r,stage=r.match?.stage||1)=>{const members=[...r.members.values()],explorers=members.filter(m=>m.role!=='monster'),controllers=members.filter(m=>m.role==='monster').map(m=>m.id);if(!explorers.length)throw Error('NEED_EXPLORER');r.match=createMatch(explorers.map((m,i)=>createPlayer(m.id,m.name,i)),r.settings,undefined,controllers,stage);if(stage===2)for(const entity of [...r.match.players,...r.match.monsters.filter(m=>m.controllerId)])entity.entered=false;for(const m of members){m.queue=[];m.enqueued=0;m.inputStarted=false;m.ready=false}sendMatch(r,'start');r.updated=Date.now()}
  wss.on('connection',(ws,req)=>{
   const origin=req.headers.origin,allowed=(process.env.ALLOWED_ORIGINS||'').split(',').filter(Boolean)
   if(origin&&allowed.length&&!allowed.includes(origin)){ws.close(1008,'origin');return}
@@ -45,6 +45,7 @@ export function createGameServer(options={}){
    else if(d.type==='role'){if(room.match)throw Error('ALREADY_STARTED');member.role=roleOf(d.role);member.ready=false;broadcast(room,lobby(room))}
    else if(d.type==='settings'){if(member.id!==room.host||room.match)throw Error('HOST_ONLY');room.settings=settings(d.settings);broadcast(room,lobby(room))}
    else if(d.type==='start'){if(member.id!==room.host)throw Error('HOST_ONLY');if(room.match||[...room.members.values()].some(m=>!m.ready||!m.ws))throw Error('NOT_READY');start(room)}
+   else if(d.type==='enter-stage'){if(!room.match||room.match.stage!==2)throw Error('ALREADY_STARTED');const entity=member.role==='monster'?room.match.monsters.find(m=>m.controllerId===member.id):room.match.players.find(p=>p.id===member.id);if(entity)entity.entered=true}
    else if(d.type==='next-stage'){if(member.id!==room.host)throw Error('HOST_ONLY');if(!room.match||room.match.stage===2||!room.match.finished||!(room.match.players.some(p=>p.status==='escaped')||room.match.monsters.some(m=>m.controllerId)&&room.match.players.some(p=>p.status==='dead')))throw Error('STAGE_LOCKED');if([...room.members.values()].some(m=>!m.ws))throw Error('NOT_CONNECTED');start(room,2)}
    else if(d.type==='restart'){if(member.id!==room.host)throw Error('HOST_ONLY');if([...room.members.values()].some(m=>!m.ws))throw Error('NOT_CONNECTED');start(room)}
    else if(d.type==='input'){
@@ -60,7 +61,7 @@ export function createGameServer(options={}){
  const timer=setInterval(()=>{const now=performance.now();acc+=Math.min(.2,(now-previous)/1000);previous=now
   while(acc>=STEP){acc-=STEP;broadcastCount++
    for(const [code,r]of rooms){
-    for(const [id,m]of r.members)if(!m.ws&&Date.now()-(m.disconnected||0)>30000){r.members.delete(id);const p=r.match?.players.find(p=>p.id===id),monster=r.match?.monsters.find(monster=>monster.controllerId===id);if(p&&p.status==='active')p.status='left';if(monster){monster.controllerId=null;monster.connected=true;monster.path=[];monster.repath=0}if(id===r.host)r.host=[...r.members.keys()][0]||null;broadcast(r,lobby(r))}
+    for(const [id,m]of r.members)if(!m.ws&&Date.now()-(m.disconnected||0)>30000){r.members.delete(id);const p=r.match?.players.find(p=>p.id===id),monster=r.match?.monsters.find(monster=>monster.controllerId===id);if(p&&p.status==='active')p.status='left';if(monster){monster.controllerId=null;monster.connected=true;monster.entered=true;monster.path=[];monster.repath=0}if(id===r.host)r.host=[...r.members.keys()][0]||null;broadcast(r,lobby(r))}
     if(!r.members.size||Date.now()-r.updated>45*60*1000){for(const m of r.members.values())m.ws?.close(1000,'expired');rooms.delete(code);continue}
     if(r.match){const inputs={};for(const m of r.members.values()){if(!m.inputStarted&&m.queue.length>=3)m.inputStarted=true;if(m.inputStarted&&m.queue.length===0)m.inputStarted=false;inputs[m.id]=m.inputStarted?m.queue.shift():{}}tick(r.match,inputs);sendMatch(r)}
    }

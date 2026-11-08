@@ -1,7 +1,7 @@
 // Authoritative visibility for stage 2. Walls block sight, including when
 // the monster is in the camera cone but behind a corner.
 export function observesMonster(player, monster, walls, {fov=60,aspect=16/9,eye=1.58}={}) {
- if(player.status!=='active'||player.connected===false)return false
+ if(player.status!=='active'||player.connected===false||player.entered===false)return false
  const yaw=player.yaw||0,pitch=player.pitch||0,tangent=Math.tan(fov*Math.PI/360)
  const length=Math.hypot(monster.x-player.x,monster.z-player.z)||1,sideX=-(monster.z-player.z)/length,sideZ=(monster.x-player.x)/length
  // Check head, torso and feet: a visible part around a corner still counts.
@@ -20,7 +20,7 @@ export function observesMonster(player, monster, walls, {fov=60,aspect=16/9,eye=
 }
 
 export function observationState(players,monster,walls,camera={}){
- const active=players.filter(p=>p.status==='active'&&p.connected!==false)
+ const active=players.filter(p=>p.status==='active'&&p.connected!==false&&p.entered!==false)
  const target=active.reduce((best,p)=>!best||Math.hypot(p.x-monster.x,p.z-monster.z)<Math.hypot(best.x-monster.x,best.z-monster.z)?p:best,null)
  return {frozen:active.some(p=>observesMonster(p,monster,walls,camera)),target:target?.id||null,lookYaw:target?Math.atan2(target.x-monster.x,target.z-monster.z):monster.lookYaw||0}
 }
