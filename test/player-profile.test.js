@@ -1,0 +1,6 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+import {preferences,profile,mergeProfile,retryStage} from '../src/player-profile.js'
+test('a newly registered user without a save gets a valid empty profile',()=>{assert.deepEqual(profile(null),{completedStage:0,preferences:{}});assert.deepEqual(profile({completedStage:Infinity,preferences:null}),{completedStage:0,preferences:{}})})
+test('preferences keep separate stage sensitivities and discard unrelated data',()=>{assert.deepEqual(preferences({sensitivity:.002,sensitivity2:.004,quality:'high',title:'other',password:'never'}),{sensitivity:.002,sensitivity2:.004,quality:'high'});assert.equal(preferences({sensitivity2:999}).sensitivity2,.006);assert.deepEqual(preferences({sensitivity:NaN,fov:Infinity}),{})})
+test('progress merges never lose a completed stage and a preference is not multiplied on reload',()=>{const saved=mergeProfile({completedStage:2,preferences:{sensitivity:.002,sensitivity2:.0038}},{completedStage:1,preferences:{bgm:.3}});assert.equal(saved.completedStage,2);assert.deepEqual(profile(JSON.parse(JSON.stringify(saved))),saved);assert.equal(saved.preferences.sensitivity2,.0038);assert.equal(retryStage(2,true),2);assert.equal(retryStage(2,false),1);assert.equal(retryStage(1,true),1)})

@@ -9,7 +9,8 @@ import {STEP,PROTOCOL_VERSION,MAX_PLAYERS,settings} from '../shared/world.js'
 import {createPlayer,createMatch,tick,snapshot,sanitizeInput} from '../shared/engine.js'
 export function createGameServer(options={}){
  const app=express(),server=createServer(app),rooms=new Map(),wss=new WebSocketServer({server,path:'/socket',maxPayload:16384})
- mountAccounts(app,options.auth)
+ const accounts=mountAccounts(app,options.auth)
+ const checkpoint=options.checkpoint|| (async(token,uid)=>{const response=await fetch('https://firestore.googleapis.com/v1/projects/'+accounts.projectId+'/databases/(default)/documents/players/'+encodeURIComponent(uid),{headers:{Authorization:'Bearer '+token},signal:AbortSignal.timeout(8000)});if(response.status===404)return 0;if(!response.ok)throw Error('SAVE_UNAVAILABLE');return Number((await response.json()).fields?.completedStage?.integerValue)||0})
  app.disable('x-powered-by');app.use((_req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');next()})
  app.get('/api/health',(_req,res)=>res.json({ok:true,game:'shutter-escape',rooms:rooms.size,protocol:PROTOCOL_VERSION}))
  app.use(express.static(resolve(fileURLToPath(new URL('../dist',import.meta.url)))))
@@ -17,26 +18,27 @@ export function createGameServer(options={}){
  const send=(ws,data)=>{if(ws?.readyState===WebSocket.OPEN)ws.send(JSON.stringify(data))},broadcast=(r,data)=>{const encoded=JSON.stringify(data);for(const m of r.members.values())if(m.ws?.readyState===WebSocket.OPEN)m.ws.send(encoded)},roleOf=role=>role==='monster'?'monster':'player'
  const lobby=r=>({type:'lobby',code:r.code,host:r.host,settings:r.settings,members:[...r.members.values()].map(m=>({id:m.id,name:m.name,role:m.role,ready:m.ready,connected:!!m.ws})),running:!!r.match})
  const sendMatch=(r,type='state')=>{for(const m of r.members.values())if(m.ws?.readyState===WebSocket.OPEN&&(type!=='state'||m.ws.bufferedAmount<16384))send(m.ws,{type,state:snapshot(r.match,{id:m.id,role:m.role}),serverTime:Date.now()})}
- const start=(r,stage=r.match?.stage||1)=>{const members=[...r.members.values()],explorers=members.filter(m=>m.role!=='monster'),controllers=members.filter(m=>m.role==='monster').map(m=>m.id);if(!explorers.length)throw Error('NEED_EXPLORER');r.match=createMatch(explorers.map((m,i)=>createPlayer(m.id,m.name,i)),r.settings,undefined,controllers,stage);if(stage===2)for(const entity of [...r.match.players,...r.match.monsters.filter(m=>m.controllerId)])entity.entered=false;for(const m of members){m.queue=[];m.enqueued=0;m.inputStarted=false;m.ready=false}sendMatch(r,'start');r.updated=Date.now()}
+ const start=(r,stage=r.match?.stage||r.initialStage||1)=>{const members=[...r.members.values()];if(stage===2&&(r.match?.stage===2||!r.match)&&members.some(m=>!m.uid))stage=1;const explorers=members.filter(m=>m.role!=='monster'),controllers=members.filter(m=>m.role==='monster').map(m=>m.id);if(!explorers.length)throw Error('NEED_EXPLORER');r.match=createMatch(explorers.map((m,i)=>createPlayer(m.id,m.name,i)),r.settings,undefined,controllers,stage);if(stage===2)for(const entity of [...r.match.players,...r.match.monsters.filter(m=>m.controllerId)])entity.entered=false;for(const m of members){m.queue=[];m.enqueued=0;m.inputStarted=false;m.ready=false}sendMatch(r,'start');r.updated=Date.now()}
  wss.on('connection',(ws,req)=>{
   const origin=req.headers.origin,allowed=(process.env.ALLOWED_ORIGINS||'').split(',').filter(Boolean)
   if(origin&&allowed.length&&!allowed.includes(origin)){ws.close(1008,'origin');return}
-  let room=null,member=null,rate={time:Date.now(),count:0}
+  let room=null,member=null,joining=false,rate={time:Date.now(),count:0}
   ws.on('error',()=>{})
-  ws.on('message',raw=>{try{
+  ws.on('message',async raw=>{let claimedJoin=false;try{
    if(Date.now()-rate.time>1000)rate={time:Date.now(),count:0};if(++rate.count>100){ws.close(1008,'rate');return}
    const d=JSON.parse(raw.toString());if(!d||typeof d.type!=='string')throw Error('INVALID_REQUEST')
    if(d.type==='ping'){send(ws,{type:'pong',sent:d.sent});return}
    if(['create','join','resume'].includes(d.type)){
     if(d.protocol!==PROTOCOL_VERSION)throw Error('UPDATE_REQUIRED')
-    if(member)throw Error('ALREADY_JOINED')
-    if(d.type==='create'){if(rooms.size>=100)throw Error('ROOM_LIMIT');let code;do{code=Array.from({length:6},()=> 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[randomInt(32)]).join('')}while(rooms.has(code));room={code,host:null,members:new Map(),settings:settings(d.settings),match:null,updated:Date.now()};rooms.set(code,room)}
+    if(member||joining)throw Error('ALREADY_JOINED');let identity=null,saved=0;if(d.type!=='resume'){joining=true;claimedJoin=true;if(d.idToken){identity=await accounts.authenticate({headers:{authorization:'Bearer '+d.idToken}});if(d.type==='create'&&d.stage===2)saved=await checkpoint(d.idToken,identity.uid)}if(d.stage===2&&(!identity||saved<1))throw Error('STAGE_LOCKED')}
+    if(ws.readyState!==WebSocket.OPEN)return;
+    if(d.type==='create'){if(rooms.size>=100)throw Error('ROOM_LIMIT');let code;do{code=Array.from({length:6},()=> 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[randomInt(32)]).join('')}while(rooms.has(code));room={code,initialStage:d.stage===2?2:1,host:null,members:new Map(),settings:settings(d.settings),match:null,updated:Date.now()};rooms.set(code,room)}
     else{room=rooms.get(String(d.code||'').toUpperCase());if(!room)throw Error('ROOM_NOT_FOUND')}
     if(d.type==='resume'){
      member=room.members.get(String(d.id));if(!member||member.token!==d.token||member.ws||Date.now()-(member.disconnected||0)>30000)throw Error('RESUME_FAILED');member.ws=ws;member.queue=[];member.inputStarted=false;const entity=member.role==='monster'?room.match?.monsters.find(m=>m.controllerId===member.id):room.match?.players.find(p=>p.id===member.id);member.enqueued=entity?.ack||0;if(entity)entity.connected=true
     }else{
      if(room.match)throw Error('ALREADY_STARTED');if(room.members.size>=MAX_PLAYERS)throw Error('ROOM_FULL')
-     const id=randomBytes(8).toString('hex');member={id,token:randomBytes(24).toString('hex'),name:String(d.name||'探索者').trim().slice(0,16)||'探索者',role:roleOf(d.role),ws,ready:false,queue:[],enqueued:0,inputStarted:false};room.members.set(id,member);room.host||=id
+     const id=randomBytes(8).toString('hex');member={id,uid:identity?.uid||null,token:randomBytes(24).toString('hex'),name:String(d.name||'探索者').trim().slice(0,16)||'探索者',role:roleOf(d.role),ws,ready:false,queue:[],enqueued:0,inputStarted:false};room.members.set(id,member);room.host||=id
     }
     send(ws,{type:'joined',code:room.code,id:member.id,token:member.token,host:room.host,role:member.role});broadcast(room,lobby(room));if(room.match)send(ws,{type:'start',state:snapshot(room.match,{id:member.id,role:member.role})});return
    }
@@ -54,7 +56,7 @@ export function createGameServer(options={}){
    }
    else if(d.type==='leave'){member.leaving=true;ws.close(1000,'leave')}
    else throw Error('INVALID_REQUEST')
-  }catch(error){send(ws,{type:'error',code:error.message||'INVALID_REQUEST'})}})
+  }catch(error){send(ws,{type:'error',code:error.message||'INVALID_REQUEST'})}finally{if(claimedJoin)joining=false}})
   ws.on('close',()=>{if(!member||member.ws!==ws)return;member.ws=null;member.disconnected=member.leaving?Date.now()-30001:Date.now();const entity=member.role==='monster'?room?.match?.monsters.find(m=>m.controllerId===member.id):room?.match?.players.find(p=>p.id===member.id);if(entity)entity.connected=false;if(room)broadcast(room,lobby(room))})
  })
  let previous=performance.now(),acc=0,broadcastCount=0

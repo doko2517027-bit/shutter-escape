@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import {initializeApp,deleteApp} from 'firebase/app'
 import {getFirestore,connectFirestoreEmulator,doc,setDoc,getDoc,terminate,serverTimestamp} from 'firebase/firestore'
 import {createSharedAssets,packAsset} from '../src/shared-assets.js'
+import * as firestoreSDK from 'firebase/firestore'
+import {Account} from '../src/account.js'
 const enabled=process.env.FIRESTORE_EMULATOR_HOST==='127.0.0.1:8189'
 test('real rules: administrator publishes, independent guests receive model/settings, private drafts and unauthorised writes are denied',{skip:!enabled,timeout:60000},async()=>{
  const projectId='demo-shutter-assets',base=`http://127.0.0.1:8189/v1/projects/${projectId}/databases/(default)/documents`,apps=[],dbs=[],services=[],errors=[]
@@ -14,6 +16,7 @@ test('real rules: administrator publishes, independent guests receive model/sett
  const wait=async fn=>{const deadline=Date.now()+12000;while(!fn()){if(Date.now()>deadline)throw errors[0]||Error('shared update timeout');await new Promise(r=>setTimeout(r,25))}}
  try{
   const writer=await service(owner),reader=await service(guest)
+  const save=Object.assign(Object.create(Account.prototype),{user:{uid:'asset-owner'},auth:{app:owner.app},profileUid:'asset-owner',profileRef:doc(owner.db,'players','asset-owner'),profileSDK:firestoreSDK,profile:{completedStage:0,preferences:{}},profilePending:false});save.savePreferences({sensitivity:.002,sensitivity2:.004,quality:'low'});await save.flushProfile();assert.equal(save.profileError,'');save.completeStage(1);await save.flushProfile();const record=await getDoc(doc(owner.db,'players','asset-owner'));assert.equal(record.data().completedStage,1);assert.equal(record.data().preferences.sensitivity2,.004);await assert.rejects(()=>getDoc(doc(stranger.db,'players','asset-owner')),e=>e.code==='permission-denied');await assert.rejects(()=>setDoc(doc(stranger.db,'players','asset-owner'),record.data()),e=>e.code==='permission-denied');await assert.rejects(()=>setDoc(doc(owner.db,'players','asset-owner'),{...record.data(),completedStage:0,updatedAt:serverTimestamp()}),e=>e.code==='permission-denied')
   const json=Buffer.from(JSON.stringify({asset:{version:'2.0'},scenes:[{}],extras:{padding:'x'.repeat(420000)}})),length=Math.ceil(json.length/4)*4,out=Buffer.alloc(20+length,32);out.writeUInt32LE(0x46546c67,0);out.writeUInt32LE(2,4);out.writeUInt32LE(out.length,8);out.writeUInt32LE(length,12);out.writeUInt32LE(0x4e4f534a,16);json.copy(out,20)
   const asset={role:'monster',name:'emulator-only.glb',kind:'glb',blob:new Blob([out]),transform:{scale:1.3}}
   const id=await writer.publish(asset,{useColor:true,color:'#123456'});await wait(()=>reader.assets.monster?.uploadId===id);assert.equal(reader.assets.monster.transform.scale,1.3);assert.equal(reader.records.monster.look.color,'#123456');assert.equal((await reader.assets.monster.blob.arrayBuffer()).byteLength,out.length)

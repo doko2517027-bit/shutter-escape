@@ -27,4 +27,5 @@ export function mountAccounts(app,options={}){
  }
  app.get('/api/account',async(req,res)=>{if(!req.headers.authorization){res.json({signedIn:false,admin:false});return}try{res.json(await authenticate(req))}catch{res.status(401).json({error:'UNAUTHENTICATED',admin:false})}})
  app.get('/api/admin/access',async(req,res)=>{try{const user=await authenticate(req);if(!user.admin){res.status(403).json({error:'FORBIDDEN'});return}res.json({allowed:true})}catch{res.status(401).json({error:'UNAUTHENTICATED'})}})
+ return {authenticate,projectId}
 }

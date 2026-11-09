@@ -5,6 +5,16 @@ service cloud.firestore {
   function role(r) { return r in ['monster2','wall2','brick2','lever2','door2','background2','world2','background','world','monster','door','lever','brick','wall','seabed','structure','pipe','lamp','player','effect','water','ui','logo','hands','sound_player_splash','sound_player_water','sound_player_brick','sound_player_land','sound_monster_walk','sound_monster_run','sound_monster_cry','sound_monster_attack','sound_ambient_drip','sound_ambient_hollow','sound_lever','sound_door']; }
   function published(id, r) { let p = get(/databases/$(database)/documents/sharedAssets/$(r)).data; return p.uploadId == id || p.previous == id; }
   match /internal/{id} { allow read, write: if false; }
+  match /players/{uid} {
+   allow read: if request.auth != null && request.auth.uid == uid;
+   allow create, update: if request.auth != null && request.auth.uid == uid
+    && request.resource.data.keys().hasOnly(['completedStage','preferences','updatedAt'])
+    && request.resource.data.completedStage is int && request.resource.data.completedStage >= 0 && request.resource.data.completedStage <= 2
+    && (!exists(/databases/$(database)/documents/players/$(uid)) || request.resource.data.completedStage >= resource.data.completedStage)
+    && request.resource.data.preferences is map && request.resource.data.preferences.size() <= 8
+    && request.resource.data.preferences.keys().hasOnly(['sensitivity','sensitivity2','fov','bgm','se','quality','reduced'])
+    && request.resource.data.updatedAt == request.time;
+  }
   match /sharedAssets/{r} {
    allow read: if true;
    allow create, update: if admin() && request.resource.data.updatedAt == request.time && (
