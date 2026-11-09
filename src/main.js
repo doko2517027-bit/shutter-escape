@@ -141,7 +141,7 @@ function loop(now){const outgoing=[];const dt=Math.min(.1,(now-lastFrame)/1000);
 setInterval(()=>{if(ws?.readyState===WebSocket.OPEN)send('ping',{sent:performance.now()})},2500)
 window.addEventListener('resize',()=>{if(innerWidth<innerHeight&&mode==='game')go('pause')});
 let appliedProfileUid='';
-account=new Account(endpoint,()=>{if(account?.user&&account.profile&&appliedProfileUid!==account.user.uid){appliedProfileUid=account.user.uid;Object.assign(config,account.profile.preferences);persist()}if(!account?.user)appliedProfileUid='';if(['title','entry','settings','account','admin'].includes(mode))render()});
+account=new Account(endpoint,()=>{if(account?.user&&account.profile&&appliedProfileUid!==account.user.uid){appliedProfileUid=account.user.uid;Object.assign(config,account.profile.preferences);persist()}if(!account?.user)appliedProfileUid='';if(['title','entry','modes','settings','account','admin'].includes(mode))render()});
 window.addEventListener('online',()=>void account?.flushProfile());
 function requireShared(){if(!shared?.ready)throw Error('共有素材を準備中です。通信を確認して少し待ってからお試しください。');return shared}
 async function receiveShared(service){shared=service;assets={...localAssets};config.appearance||={};for(const [role,record]of Object.entries(service.records)){if(role==='_settings')continue;delete assets[role];if(service.assets[role])assets[role]=service.assets[role];if(record.look)config.appearance[role]=safeLook(record.look);else delete config.appearance[role]}if(service.settings){config.title=service.settings.title||BRAND.title;config.environment=safeEnvironment(service.settings.environment);config.audio=safeAudioSettings(service.settings.audio)}persist();await refreshAssets()}
