@@ -107,7 +107,13 @@ root.addEventListener('pointerdown', event => {
   jump = true;
 });
     root.addEventListener('click',event=>{const element=event.target.closest('[data-cmd]');if(!element||busy)return;void action(element.dataset.cmd,element).catch(e=>tell(e.message||'処理に失敗しました。'))})
-async function action(cmd,el){audio.unlock();if(['save-sound-settings','reset-sound-settings','preview-sound','stop-sound','save-brand','save-asset','reset-asset','export-pack','save-look','reset-look','save-environment','reset-environment'].includes(cmd))await account.requireAdmin();if(cmd==='back'){if(mode==='lobby')leave();go(el.dataset.to||'title');return}if(cmd==='start-game'){leave();go('entry');return}if(cmd==='guest-play'){await account.initialized;if(account.user)await account.logout();leave();go('modes');return}if(cmd==='choose-login'||cmd==='choose-register'){await account.initialized;if(account.user)await account.logout();accountForm=cmd==='choose-register'?'register':'login';go('account');return}if(cmd==='account-play'){go(state?'pause':'modes');return}if(cmd==='modes'){go('modes');return}if(cmd==='resume-save'){await account.initialized;if(!account.user||account.profile?.completedStage<1)throw Error('ステージ1のセーブが必要です。');leave();beginSolo(2);return}if(cmd==='solo'){leave();beginSolo();return}if(cmd==='coop'){playType='online';go('lobby');return}if(cmd==='enter'){enter();return}if(cmd==='resume'){enter();return}if(cmd==='toggle-sensitivity'){sensitivityOpen=!sensitivityOpen;root.querySelector('#quick-sensitivity').hidden=!sensitivityOpen;if(sensitivityOpen){keys.clear();stick={right:0,forward:0};document.exitPointerLock?.()}else lockPointer();return}if(cmd==='pause'){go('pause');return}if(cmd==='admin'){try{await account.requireAdmin();previousMode=mode;go('admin')}catch(e){go('account');tell(accountError(e))}return}if(cmd==='account'){previousMode=mode;go('account');return}if(cmd==='settings'){previousMode=mode;go(cmd);return}if(cmd==='title'||cmd==='leave'){leave();go(cmd==='leave'?'lobby':'title');return}if(cmd==='exit'){go('title');notice='このタブを閉じると終了します。';render();return}if(cmd==='restart'){if(playType==='solo')beginSolo(retryStage(state?.stage,!!account?.user));else if(meId!==host)tell('リスタートはホストが操作できます。');else if(!state?.finished){go('restart-confirm')}else send('restart');return}
+async function action(cmd,el){
+ if(['solo','resume-save','create','join','enter','resume'].includes(cmd)&&!sharedApplied){
+  tell('共通素材を読み込み中です。少し待ってからもう一度お試しください。')
+  return
+ }
+ audio.unlock();if(['save-sound-settings','reset-sound-settings','preview-sound','stop-sound','save-brand','save-asset','reset-asset','export-pack','save-look','reset-look','save-environment','reset-environment'].includes(cmd))await account.requireAdmin();if(cmd==='back'){if(mode==='lobby')leave();go(el.dataset.to||'title');return}if(cmd==='start-game'){leave();go('entry');return}if(cmd==='guest-play'){await account.initialized;if(account.user)await account.logout();leave();go('modes');return}if(cmd==='choose-login'||cmd==='choose-register'){await account.initialized;if(account.user)await account.logout();accountForm=cmd==='choose-register'?'register':'login';go('account');return}if(cmd==='account-play'){go(state?'pause':'modes');return}if(cmd==='modes'){go('modes');return}if(cmd==='resume-save'){await account.initialized;if(!account.user||account.profile?.completedStage<1)throw Error('ステージ1のセーブが必要です。');leave();beginSolo(2);return}if(['solo','resume-save','create','join','resume-room'].includes(cmd)&&!sharedApplied){tell('共通素材を読み込み中です。少し待ってからもう一度お試しください。');return}
+ if(cmd==='solo'){leave();beginSolo();return}if(cmd==='coop'){playType='online';go('lobby');return}if(cmd==='enter'){enter();return}if(cmd==='resume'){enter();return}if(cmd==='toggle-sensitivity'){sensitivityOpen=!sensitivityOpen;root.querySelector('#quick-sensitivity').hidden=!sensitivityOpen;if(sensitivityOpen){keys.clear();stick={right:0,forward:0};document.exitPointerLock?.()}else lockPointer();return}if(cmd==='pause'){go('pause');return}if(cmd==='admin'){try{await account.requireAdmin();previousMode=mode;go('admin')}catch(e){go('account');tell(accountError(e))}return}if(cmd==='account'){previousMode=mode;go('account');return}if(cmd==='settings'){previousMode=mode;go(cmd);return}if(cmd==='title'||cmd==='leave'){leave();go(cmd==='leave'?'lobby':'title');return}if(cmd==='exit'){go('title');notice='このタブを閉じると終了します。';render();return}if(cmd==='restart'){if(playType==='solo')beginSolo(retryStage(state?.stage,!!account?.user));else if(meId!==host)tell('リスタートはホストが操作できます。');else if(!state?.finished){go('restart-confirm')}else send('restart');return}
  if(cmd==='next-stage'){if(playType==='solo')beginSolo(2);else send('next-stage');return}
  if(cmd==='retry-save'){await account.flushProfile();tell(account.profileError||'セーブを同期しました。');return}
  if(cmd==='account-login'||cmd==='account-register'){const next=cmd==='account-register'?'register':'login';if(mode==='account'&&accountForm===next)return;accountForm=next;go('account');return}
@@ -158,8 +164,40 @@ window.addEventListener('resize',()=>{if(innerWidth<innerHeight&&mode==='game')g
 let appliedProfileUid='';
 account=new Account(endpoint,()=>{if(account?.user&&account.profile&&appliedProfileUid!==account.user.uid){appliedProfileUid=account.user.uid;Object.assign(config,account.profile.preferences);persist()}if(!account?.user)appliedProfileUid='';if(['title','entry','modes','settings','account','admin'].includes(mode))render()});
 window.addEventListener('online',()=>void account?.flushProfile());
+let sharedApplied=false
 function requireShared(){if(!shared?.ready)throw Error('共有素材を準備中です。通信を確認して少し待ってからお試しください。');return shared}
-async function receiveShared(service){shared=service;assets={...localAssets};config.appearance||={};for(const [role,record]of Object.entries(service.records)){if(role==='_settings')continue;delete assets[role];if(service.assets[role])assets[role]=service.assets[role];if(record.look)config.appearance[role]=safeLook(record.look);else delete config.appearance[role]}if(service.settings){config.title=service.settings.title||BRAND.title;config.environment=safeEnvironment(service.settings.environment);config.audio=safeAudioSettings(service.settings.audio)}persist();await refreshAssets()}
-async function migrateLegacy(){if(migrationAttempted||busy||mode==='game'||!account?.admin||!shared?.ready||shared.records.monster||!localAssets.monster||localAssets.monster.publishedVersion)return;migrationAttempted=true;busy=true;notice='保存済みの怪物を全プレイヤー向けに共有しています…';render();try{const a=localAssets.monster;a.publishedVersion=await shared.publish(a,config.appearance?.monster);await saveAsset(a).catch(()=>{});tell('保存済みの怪物を全プレイヤー向けに共有しました。')}catch(e){tell('怪物の共有保存に失敗しました。素材管理から「保存して全員に反映」を押して再試行できます。 '+e.message)}finally{busy=false;render()}}
-render();readAssets().then(async saved=>{localAssets=saved;assets=saved;await refreshAssets()}).catch(()=>tell('端末の素材保存領域を利用できません。共有素材は読み込めます。')).then(async()=>{try{shared=await createSharedAssets(account,service=>{void receiveShared(service).catch(e=>tell(e.message))},e=>tell('共有素材の通信に失敗しました。素材管理から再読み込みできます。 '+e.message))}catch(e){tell(e.message)}});requestAnimationFrame(loop)
+async function receiveShared(service){
+ shared=service
+ assets={...service.assets}
+ config.appearance={}
+ for(const [role,record] of Object.entries(service.records)){
+  if(role!=='_settings'&&record.look)config.appearance[role]=safeLook(record.look)
+ }
+ config.title=service.settings?.title||BRAND.title
+ config.environment=safeEnvironment(service.settings?.environment)
+ config.audio=safeAudioSettings(service.settings?.audio)
+ persist()
+ await refreshAssets()
+ sharedApplied=true
+}
+async function migrateLegacy(){
+ if(migrationAttempted||busy||mode==='game'||!account?.admin||!shared?.ready)return
+ const pending=Object.values(localAssets).filter(asset=>!shared.records[asset.role]&&!asset.publishedVersion)
+ if(!pending.length)return
+ migrationAttempted=true
+ busy=true
+ try{
+  for(const asset of pending){
+   asset.publishedVersion=await shared.publish(asset,null)
+   await saveAsset(asset).catch(()=>{})
+  }
+  tell('端末に保存されていた素材を全プレイヤーに共有しました。')
+ }catch(e){
+  tell('素材の共有保存に失敗しました。素材管理から再試行してください。 '+e.message)
+ }finally{busy=false}
+}
+render()
+void readAssets().then(saved=>{localAssets=saved;void migrateLegacy()}).catch(()=>{})
+void createSharedAssets(account,service=>{void receiveShared(service).catch(e=>tell(e.message))},e=>tell('共通素材を読み込めませんでした。ページを再読み込みしてください。 '+e.message)).then(service=>{shared=service}).catch(e=>tell(e.message))
+requestAnimationFrame(loop)
 const incoming=new URLSearchParams(location.search).get('room');if(incoming){playType='online';go('lobby')}
